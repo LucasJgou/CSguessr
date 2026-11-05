@@ -311,7 +311,8 @@ async function refreshBoard() {
     const rows = await Scoreboard.top(3);
     renderScores($("boardList"), rows);
     renderScores($("endTopList"), rows);
-  } catch {
+  } catch (err) {
+    console.error(err);
     $("boardList").innerHTML = '<li class="empty">Classement indisponible</li>';
   }
 }
@@ -347,13 +348,19 @@ $("pseudoForm").addEventListener("submit", async (e) => {
   const ratio = total / (MAX_POINTS * order.length);
   try {
     const { rank, total: nb } = await Scoreboard.submit(pseudo, total);
-    $("endRank").innerHTML = "";
-    $("endRank").append("Tu es " + ordinal(rank));
-    const sub = document.createElement("small"); sub.textContent = "sur " + nb + " score" + (nb > 1 ? "s" : "") + " enregistré" + (nb > 1 ? "s" : ""); $("endRank").appendChild(sub);
-    $("endMsg").textContent = endMessage(rank, ratio);
-  } catch {
+    $("endRank").textContent = "";
+    if (rank) {
+      $("endRank").append("Tu es " + ordinal(rank));
+      const sub = document.createElement("small"); sub.textContent = "sur " + nb + " score" + (nb > 1 ? "s" : "") + " enregistré" + (nb > 1 ? "s" : ""); $("endRank").appendChild(sub);
+      $("endMsg").textContent = endMessage(rank, ratio);
+    } else {
+      $("endRank").append("Score enregistré");
+      $("endMsg").textContent = "Ton rang n’a pas pu être calculé. " + endMessage(99, ratio);
+    }
+  } catch (err) {
+    console.error(err);
     $("endRank").textContent = "Score non enregistré";
-    $("endMsg").textContent = "Le classement est injoignable pour le moment. " + endMessage(99, ratio);
+    $("endMsg").textContent = "Le classement est injoignable pour le moment. Détail : " + (err.message || err);
   }
   await refreshBoard();
   $("pseudoForm").hidden = true;
