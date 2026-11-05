@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Classement général – GeoGuessr CentraleSupélec</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#10252d; --paper:#f5f6f2; --line:#c9d0cb; --signal:#f0b429; --font:"Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--ink); color: var(--paper); min-height: 100vh; }
+  main { max-width: 640px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 40px; }
+  a { color: var(--signal); }
+  h1 { font-size: 1.9rem; font-weight: 800; margin: .5rem 0 .25rem; }
+  .lead { margin: 0 0 1.25rem; color: #c3cec9; }
+  .note { background: rgba(240,180,41,.15); border-left: 4px solid var(--signal); padding: .6rem .8rem; border-radius: 6px; margin-bottom: 1rem; font-size: .95rem; }
+  ol { list-style: none; margin: 0; padding: 0; }
+  li { display: grid; grid-template-columns: 3rem 1fr auto; align-items: baseline; gap: .5rem; padding: .7rem .9rem; border-radius: 12px; background: rgba(255,255,255,.06); margin-bottom: .45rem; }
+  li .rk { font-weight: 800; font-size: 1.15rem; color: var(--signal); font-variant-numeric: tabular-nums; }
+  li .who { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  li .who small { display: block; color: #9fb0aa; font-weight: 400; font-size: .78rem; }
+  li .pts { font-weight: 800; font-variant-numeric: tabular-nums; }
+  li.top { background: rgba(240,180,41,.18); }
+  li.top .rk { font-size: 1.4rem; }
+  li.me { outline: 2px solid var(--signal); }
+  #more { width: 100%; margin-top: .75rem; border: 0; border-radius: 12px; padding: .9rem; font: 800 1rem var(--font); background: var(--signal); color: var(--ink); cursor: pointer; }
+  #more:focus-visible, .play:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+  #more:disabled { opacity: .5; cursor: wait; }
+  #status { color: #c3cec9; padding: 1rem 0; }
+  .play { display: inline-block; margin-top: 1rem; padding: .8rem 1.2rem; border-radius: 12px; background: var(--paper); color: var(--ink); font-weight: 800; text-decoration: none; }
+</style>
+</head>
+<body>
+<main>
+  <a href="index.html">Retour au jeu</a>
+  <h1>Classement général</h1>
+  <p class="lead" id="lead">Les meilleurs scores de tous les joueurs.</p>
+  <div class="note" id="localnote" hidden>Supabase n’est pas configuré : ce classement est enregistré uniquement dans ce navigateur.</div>
+  <ol id="list" aria-live="polite"></ol>
+  <div id="status">Chargement…</div>
+  <button id="more" type="button" hidden>Voir plus</button>
+  <a class="play" href="index.html">Jouer</a>
+</main>
+
+<script src="config.js"></script>
+<script src="scoreboard.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const STEP = 50;
+let limit = STEP;
+let me = "";
+try { me = (localStorage.getItem("geoguessr_pseudo") || "").trim().toLowerCase(); } catch {}
+if (!Scoreboard.shared) $("localnote").hidden = false;
+
+function row(r, i) {
+  const li = document.createElement("li");
+  if (i < 3) li.className = "top";
+  if (me && r.pseudo.trim().toLowerCase() === me) li.classList.add("me");
+  const rk = document.createElement("span"); rk.className = "rk"; rk.textContent = i === 0 ? "1er" : (i + 1) + "e";
+  const who = document.createElement("span"); who.className = "who"; who.textContent = r.pseudo;
+  if (r.created_at) {
+    const d = document.createElement("small");
+    d.textContent = new Date(r.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+    who.appendChild(d);
+  }
+  const pts = document.createElement("span"); pts.className = "pts"; pts.textContent = r.score + " pts";
+  li.append(rk, who, pts);
+  return li;
+}
+
+async function load() {
+  $("more").disabled = true;
+  try {
+    const rows = await Scoreboard.all(limit);
+    const ol = $("list"); ol.textContent = "";
+    rows.forEach((r, i) => ol.appendChild(row(r, i)));
+    $("status").textContent = rows.length ? "" : "Aucun score pour l’instant. Sois le premier !";
+    $("lead").textContent = rows.length ? "Les meilleurs scores de tous les joueurs." : $("lead").textContent;
+    $("more").hidden = rows.length < limit;
+  } catch (err) {
+    console.error(err);
+    $("status").textContent = "Classement indisponible pour le moment. Détail : " + (err.message || err);
+  }
+  $("more").disabled = false;
+}
+
+$("more").addEventListener("click", () => { limit += STEP; load(); });
+load();
+</script>
+</body>
+</html>
