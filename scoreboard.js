@@ -7,22 +7,22 @@ const Scoreboard = (() => {
     && !SUPABASE_URL.includes("VOTRE-PROJET") && !SUPABASE_KEY.includes("VOTRE_CLE");
   const base = remote ? SUPABASE_URL.replace(/\/$/, "") + "/rest/v1/scores" : null;
   const H = remote ? { apikey: SUPABASE_KEY, ...(SUPABASE_KEY.startsWith("eyJ") ? { Authorization: "Bearer " + SUPABASE_KEY } : {}) } : {};
- 
+
   const readLocal = () => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; } };
   const writeLocal = (a) => { try { localStorage.setItem(LS_KEY, JSON.stringify(a)); } catch {} };
- 
+
   async function check(r, step) {
     if (r.ok) return r;
     let t = ""; try { t = (await r.text()).slice(0, 200); } catch {}
     throw new Error("[v3 " + step + "] HTTP " + r.status + (t ? " – " + t : ""));
   }
- 
+
   async function count(filter) {
     const r = await fetch(base + "?select=id&limit=1" + (filter || ""), { headers: { ...H, Prefer: "count=exact" } });
     await check(r, "rang");
     return parseInt((r.headers.get("Content-Range") || "").split("/")[1], 10) || 0;
   }
- 
+
   // Les n meilleurs scores : [{pseudo, score}, ...]
   async function top(n = 3) {
     if (!remote) return readLocal().sort((a, b) => b.score - a.score).slice(0, n);
@@ -30,7 +30,15 @@ const Scoreboard = (() => {
     await check(r, "lecture");
     return r.json();
   }
- 
+
+  // Le classement général : [{pseudo, score, created_at}, ...] trié du meilleur au moins bon
+  async function all(n = 100) {
+    if (!remote) return readLocal().sort((a, b) => b.score - a.score || a.t - b.t).slice(0, n).map((x) => ({ pseudo: x.pseudo, score: x.score, created_at: new Date(x.t || Date.now()).toISOString() }));
+    const r = await fetch(base + "?select=pseudo,score,created_at&order=score.desc,created_at.asc&limit=" + n, { headers: H });
+    await check(r, "classement");
+    return r.json();
+  }
+
   // Enregistre le score et renvoie { rank, total } (rang parmi tous les scores, le sien compris)
   async function submit(pseudo, score) {
     pseudo = String(pseudo).trim().slice(0, 16);
@@ -53,6 +61,6 @@ const Scoreboard = (() => {
       return { rank: better + 1, total };
     } catch (e) { console.error(e); return { rank: null, total: null }; }
   }
- 
-  return { top, submit, shared: remote };
+
+  return { top, all, submit, shared: remote };
 })();
