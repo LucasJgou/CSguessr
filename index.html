@@ -64,6 +64,10 @@
   #result.corner h2 { font-size: 1.2rem; }
   #result.corner p { font-size: .95rem; }
 
+  .hudright { display: flex; gap: 8px; }
+  #boardlink { pointer-events: auto; color: var(--paper); text-decoration: none; }
+  #boardlink:hover, #boardlink:focus-visible { background: var(--signal); color: var(--ink); outline: none; }
+  @media (max-width: 560px) { .pill { font-size: .78rem; padding: .4rem .65rem; } #hud, .hudright { gap: 6px; } }
   #addlink { pointer-events: auto; color: var(--paper); text-decoration: none; }
   #addlink:hover, #addlink:focus-visible { background: var(--signal); color: var(--ink); outline: none; }
   #missing a { color: var(--signal); }
@@ -113,7 +117,10 @@
 <div id="hud">
   <div class="pill" id="round">Manche 1 / 5</div>
   <a class="pill" id="addlink" href="ajouter.html">Ajouter une photo</a>
-  <div class="pill" id="score">0 pts</div>
+  <div class="hudright">
+    <a class="pill" id="boardlink" href="classement.html">Classement général</a>
+    <div class="pill" id="score">0 pts</div>
+  </div>
 </div>
 
 <aside id="board" aria-label="Classement des 3 meilleurs scores">
