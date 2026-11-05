@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Proposer une photo – GeoGuessr CentraleSupélec</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#10252d; --paper:#f5f6f2; --line:#c9d0cb; --signal:#f0b429; --good:#2f9e6b; --bad:#d2493f;
+          --font:"Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--ink); color: var(--paper); min-height: 100vh; }
+  main { max-width: 760px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 32px; }
+  h1 { font-size: 1.7rem; font-weight: 800; margin: .5rem 0 .25rem; }
+  p.lead { margin: 0 0 1.25rem; color: #c3cec9; max-width: 60ch; }
+  a { color: var(--signal); }
+  .step { background: rgba(255,255,255,.06); border-radius: 14px; padding: 1rem; margin-bottom: 1rem; }
+  .step h2 { font-size: 1.05rem; margin: 0 0 .6rem; }
+  input[type=file] { width: 100%; padding: .7rem; border: 1px dashed var(--line); border-radius: 10px; background: transparent; color: var(--paper); font: inherit; }
+  #preview { display: none; width: 100%; max-height: 280px; object-fit: contain; margin-top: .75rem; border-radius: 10px; background: #0a1a20; }
+  #map { height: 360px; border-radius: 12px; }
+  #send { width: 100%; border: 0; border-radius: 12px; padding: 1rem; font: 800 1.05rem var(--font); background: var(--signal); color: var(--ink); cursor: pointer; }
+  #send:disabled { background: var(--line); color: #6a7771; cursor: not-allowed; }
+  #send:focus-visible, input:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+  #msg { margin-top: .9rem; font-weight: 600; min-height: 1.4em; }
+  button.alt { border: 0; border-radius: 10px; padding: .7rem 1rem; font: 700 .95rem var(--font); background: var(--paper); color: var(--ink); cursor: pointer; }
+  .hint { font-size: .9rem; color: #c3cec9; margin: .5rem 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <a href="index.html">Retour au jeu</a>
+  <h1>Proposer une photo</h1>
+  <p class="lead">Dépose ta photo, place le point exact où elle a été prise, puis envoie. Ta proposition sera vérifiée avant d’apparaître dans le jeu.</p>
+
+    <div class="step">
+    <h2>1. Choisis ta photo</h2>
+    <input type="file" id="file" accept="image/*">
+    <img id="preview" alt="Aperçu de la photo choisie">
+    
+  </div>
+
+  <div class="step">
+    <h2>2. Place le point exact</h2>
+    <div id="map"></div>
+    <p class="hint" id="coords">Zoome puis clique à l’endroit où tu as pris la photo.</p>
+  </div>
+
+  <button id="send" type="button" disabled>Envoyer la photo</button>
+    <div id="msg" role="status" aria-live="polite"></div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const CENTER = [48.7099, 2.1693];
+const MAX_SIDE = 1600;
+const $ = (id) => document.getElementById(id);
+let blob = null, point = null, marker = null, added = 0;
+
+const ign = L.tileLayer(
+  "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
+  { maxNativeZoom: 19, maxZoom: 20, attribution: "Photos aériennes © IGN / Géoplateforme" }
+);
+const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  { maxZoom: 19, attribution: "Imagerie © Esri" });
+const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { maxZoom: 19, attribution: "© contributeurs OpenStreetMap" });
+const map = L.map("map", { center: CENTER, zoom: 16, layers: [ign] });
+L.control.layers({ "Satellite IGN (récent)": ign, "Satellite Esri": sat, "Plan": osm }).addTo(map);
+
+map.on("click", (e) => {
+  point = e.latlng;
+  if (marker) marker.setLatLng(point);
+  else marker = L.circleMarker(point, { radius: 8, color: "#10252d", weight: 3, fillColor: "#f0b429", fillOpacity: 1 }).addTo(map);
+  $("coords").textContent = "Point placé : " + point.lat.toFixed(5) + ", " + point.lng.toFixed(5);
+  refresh();
+});
+
+// Réduit la photo à 1600 px max et la ré-encode en JPEG (retire aussi les données EXIF, dont le GPS du téléphone)
+async function compress(file) {
+  const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const k = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise((res) => c.toBlob(res, "image/jpeg", 0.82));
+}
+
+$("file").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  blob = null; $("preview").style.display = "none"; $("msg").textContent = "";
+  if (!f) return refresh();
+  try {
+    blob = await compress(f);
+    $("preview").src = URL.createObjectURL(blob);
+    $("preview").style.display = "block";
+  } catch { $("msg").textContent = "Format d’image non lu. Essaie une photo JPEG ou PNG."; }
+  refresh();
+});
+
+function refresh() { $("send").disabled = !(blob && point); }
+
+/* ============ À MODIFIER ============ */
+// Adresse qui recevra les photos. Au tout premier envoi, FormSubmit t'écrit pour confirmer cette adresse : clique sur le lien.
+const EMAIL = "lulujeg08@gmail.com";
+/* ====================================== */
+
+// Envoi par un vrai formulaire HTML (multipart) vers FormSubmit, dans un iframe caché pour rester sur la page.
+let waiting = false;
+const frame = document.createElement("iframe");
+frame.name = "sendframe"; frame.hidden = true; frame.title = "Envoi";
+document.body.appendChild(frame);
+
+frame.addEventListener("load", () => {
+  if (!waiting) return;
+  waiting = false; clearTimeout(timer);
+  $("msg").style.color = "#7fe0ae";
+  $("msg").textContent = "Photo envoyée, merci ! Tu peux en proposer une autre.";
+  resetForm();
+});
+let timer = null;
+
+function resetForm() {
+  $("file").value = ""; blob = null; $("preview").style.display = "none";
+  if (marker) { map.removeLayer(marker); marker = null; } point = null;
+  $("coords").textContent = "Zoome puis clique à l’endroit où tu as pris la photo.";
+  refresh();
+}
+
+function field(form, name, value) {
+  const i = document.createElement("input");
+  i.type = "hidden"; i.name = name; i.value = value; form.appendChild(i);
+}
+
+$("send").addEventListener("click", () => {
+  if (EMAIL.includes("exemple.fr")) {
+    $("msg").style.color = "#ff8f86";
+    $("msg").textContent = "Adresse e-mail non configurée : modifie la constante EMAIL dans ajouter.html.";
+    return;
+  }
+  const lat = point.lat.toFixed(6), lng = point.lng.toFixed(6);
+
+  const form = document.createElement("form");
+  form.method = "POST"; form.enctype = "multipart/form-data"; form.target = "sendframe";
+  form.action = "https://formsubmit.co/" + EMAIL;
+  form.style.display = "none";
+  field(form, "_subject", "Nouvelle photo GeoGuessr (" + lat + ", " + lng + ")");
+  field(form, "_captcha", "false");     // sinon une page captcha s'ouvrirait dans l'iframe caché
+  field(form, "_template", "table");
+  field(form, "_honey", "");            // anti-spam : doit rester vide
+  field(form, "ligne_pour_photos_js", "[" + lat + ", " + lng + "],");
+  field(form, "latitude", lat);
+  field(form, "longitude", lng);
+  field(form, "verifier_sur_la_carte", "https://www.google.com/maps?q=" + lat + "," + lng);
+
+  const input = document.createElement("input");
+  input.type = "file"; input.name = "attachment";
+  const dt = new DataTransfer();
+  dt.items.add(new File([blob], "photo.jpg", { type: "image/jpeg" }));
+  input.files = dt.files;
+  form.appendChild(input);
+  document.body.appendChild(form);
+
+  waiting = true;
+  $("send").disabled = true;
+  $("msg").style.color = ""; $("msg").textContent = "Envoi en cours…";
+  timer = setTimeout(() => {
+    if (!waiting) return;
+    waiting = false;
+    $("msg").style.color = "#ff8f86";
+    $("msg").textContent = "L’envoi prend trop de temps. Vérifie ta connexion et réessaie.";
+    refresh();
+  }, 30000);
+  form.submit();
+  setTimeout(() => form.remove(), 1000);
+});
+</script>
+</body>
+</html>

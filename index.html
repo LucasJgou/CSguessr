@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GeoGuessr CentraleSupélec</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #10252d;
+    --paper: #f5f6f2;
+    --line: #c9d0cb;
+    --signal: #f0b429;
+    --good: #2f9e6b;
+    --bad: #d2493f;
+    --font: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: var(--font); background: var(--ink); color: var(--paper); overflow: hidden; }
+
+  /* Photo plein écran */
+  #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #0a1a20; }
+  #photo { width: 100%; height: 100%; object-fit: contain; cursor: zoom-in; }
+  #stage.cover #photo { object-fit: cover; cursor: zoom-out; }
+  #missing { position: absolute; padding: 1rem 1.25rem; border: 1px dashed var(--line); border-radius: 8px; display: none; text-align: center; max-width: 80vw; }
+
+  /* Bandeau d'info */
+  #hud { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; right: 12px; display: flex; justify-content: space-between; gap: 8px; pointer-events: none; }
+  .pill { background: rgba(16, 37, 45, .85); backdrop-filter: blur(6px); border-radius: 999px; padding: .45rem .95rem; font-weight: 600; font-size: .95rem; }
+
+  /* Carte : petite en coin, grande au survol ou au toucher */
+  #mapwrap {
+    position: fixed; right: 12px; bottom: max(12px, env(safe-area-inset-bottom));
+    width: min(340px, 46vw); height: min(240px, 32vh);
+    background: var(--paper); border-radius: 14px; overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .5);
+    display: flex; flex-direction: column;
+    transition: width .22s ease, height .22s ease;
+    z-index: 500;
+  }
+  #mapwrap.open, #mapwrap:hover { width: min(880px, calc(100vw - 24px)); height: min(620px, calc(100vh - 90px)); }
+  #map { flex: 1; min-height: 0; }
+  #toggle { display: none; position: absolute; top: 8px; left: 8px; z-index: 1000; border: 0; border-radius: 8px; padding: .4rem .7rem; font: 600 .85rem var(--font); background: var(--ink); color: var(--paper); }
+  #guess { border: 0; padding: .9rem; font: 800 1rem var(--font); background: var(--signal); color: var(--ink); cursor: pointer; }
+  #guess:disabled { background: var(--line); color: #6a7771; cursor: not-allowed; }
+  #guess:focus-visible, #next:focus-visible, #toggle:focus-visible { outline: 3px solid var(--ink); outline-offset: -3px; }
+  @media (hover: none) { #mapwrap:hover:not(.open) { width: min(340px, 46vw); height: min(240px, 32vh); } #toggle { display: block; } }
+
+  /* Résultat */
+  #result {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    z-index: 900; width: min(420px, calc(100vw - 32px));
+    background: var(--paper); color: var(--ink); border-radius: 16px; padding: 1.5rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .55); display: none;
+  }
+  #result h2 { margin: 0 0 .25rem; font-size: 1.6rem; font-weight: 800; }
+  #result p { margin: .25rem 0 1rem; font-size: 1.05rem; }
+  #next { width: 100%; border: 0; border-radius: 10px; padding: .85rem; font: 800 1rem var(--font); background: var(--ink); color: var(--paper); cursor: pointer; }
+  #result.corner { top: auto; bottom: 12px; left: 12px; transform: none; width: min(300px, calc(100vw - 24px)); z-index: 600; padding: 1rem; }
+  #result.corner h2 { font-size: 1.2rem; }
+  #result.corner p { font-size: .95rem; }
+
+  #addlink { pointer-events: auto; color: var(--paper); text-decoration: none; }
+  #addlink:hover, #addlink:focus-visible { background: var(--signal); color: var(--ink); outline: none; }
+  #missing a { color: var(--signal); }
+
+  /* Classement à gauche */
+  #board { position: fixed; left: 12px; top: calc(max(12px, env(safe-area-inset-top)) + 54px); width: min(220px, 42vw);
+    background: rgba(16, 37, 45, .85); backdrop-filter: blur(6px); border-radius: 14px; padding: .7rem .85rem; z-index: 300; pointer-events: none; }
+  #board h2 { margin: 0 0 .4rem; font-size: .8rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--signal); }
+  .scores { list-style: none; margin: 0; padding: 0; }
+  .scores li { display: flex; align-items: baseline; gap: .5rem; padding: .2rem 0; font-size: .95rem; }
+  .scores .pos { font-weight: 800; width: 1.2rem; color: var(--signal); }
+  .scores .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .scores .pts { font-variant-numeric: tabular-nums; font-weight: 800; }
+  .scores .empty { color: #c3cec9; font-size: .9rem; }
+
+  /* Fin de partie */
+  #end { position: fixed; inset: 0; z-index: 2000; display: none; align-items: center; justify-content: center; padding: 16px;
+    background: rgba(10, 26, 32, .92); overflow-y: auto; }
+  .endcard { width: min(480px, 100%); background: var(--paper); color: var(--ink); border-radius: 20px; padding: 1.75rem 1.5rem; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.55); margin: auto; }
+  .eyebrow { margin: 0; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .85rem; color: #5b6b66; }
+  .bigscore { font-weight: 800; font-size: clamp(3.5rem, 16vw, 5.5rem); line-height: 1.05; margin: .25rem 0 .5rem; font-variant-numeric: tabular-nums; }
+  .bigscore small { font-size: 1.1rem; font-weight: 600; color: #5b6b66; margin-left: .35rem; }
+  .endcard label { display: block; font-weight: 600; margin: 1rem 0 .4rem; }
+  .endcard input { width: 100%; padding: .8rem; border: 2px solid var(--line); border-radius: 10px; font: 600 1.05rem var(--font); text-align: center; background: #fff; color: var(--ink); }
+  .endcard input:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; border-color: var(--ink); }
+  .endcard button { width: 100%; margin-top: .8rem; border: 0; border-radius: 12px; padding: .95rem; font: 800 1.05rem var(--font); background: var(--signal); color: var(--ink); cursor: pointer; }
+  .endcard button:disabled { background: var(--line); color: #6a7771; cursor: wait; }
+  .endcard button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  #endRank { font-weight: 800; font-size: clamp(1.8rem, 8vw, 2.6rem); line-height: 1.1; }
+  #endRank small { display: block; font-size: 1rem; font-weight: 600; color: #5b6b66; margin-top: .2rem; }
+  #endMsg { font-size: 1.1rem; margin: .6rem 0 1rem; }
+  #endTop { background: rgba(16,37,45,.07); border-radius: 12px; padding: .6rem .9rem; text-align: left; }
+  #endTop .scores li { font-size: 1.05rem; }
+  #endTop .scores .pos { color: var(--ink); }
+  #endResult h3 { margin: 1rem 0 .4rem; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: #5b6b66; text-align: left; }
+
+  @media (prefers-reduced-motion: reduce) { #mapwrap { transition: none; } }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <img id="photo" alt="Photo d’un lieu du campus à retrouver sur la carte">
+  <div id="missing"></div>
+</div>
+
+<div id="hud">
+  <div class="pill" id="round">Manche 1 / 5</div>
+  <a class="pill" id="addlink" href="ajouter.html">Ajouter une photo</a>
+  <div class="pill" id="score">0 pts</div>
+</div>
+
+<aside id="board" aria-label="Classement des 3 meilleurs scores">
+  <h2>Top 3</h2>
+  <ol class="scores" id="boardList"></ol>
+</aside>
+
+<div id="mapwrap">
+  <button id="toggle" type="button">Agrandir la carte</button>
+  <div id="map"></div>
+  <button id="guess" type="button" disabled>Clique sur la carte pour placer ton point</button>
+</div>
+
+<div id="result" role="dialog" aria-live="polite">
+  <h2 id="resTitle"></h2>
+  <p id="resText"></p>
+  <button id="next" type="button">Manche suivante</button>
+</div>
+
+<div id="end" role="dialog" aria-modal="true" aria-labelledby="endTitle">
+  <div class="endcard">
+    <p class="eyebrow" id="endTitle">Partie terminée</p>
+    <div class="bigscore"><span id="endScore">0</span><small id="endMax">pts</small></div>
+
+    <form id="pseudoForm">
+      <label for="pseudo">Ton pseudo pour le classement</label>
+      <input id="pseudo" maxlength="16" autocomplete="nickname" required placeholder="Ex : Marie">
+      <button type="submit" id="saveBtn">Enregistrer mon score</button>
+    </form>
+
+    <div id="endResult" hidden>
+      <div id="endRank"></div>
+      <p id="endMsg"></p>
+      <h3>Meilleurs scores</h3>
+      <div id="endTop"><ol class="scores" id="endTopList"></ol></div>
+      <button type="button" id="replay">Rejouer</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="config.js"></script>
+<script src="scoreboard.js"></script>
+<script src="photos.js"></script>
+<script>
+/* ============ À MODIFIER ============ */
+
+// Ligne i de COORDS (photos.js)  <->  photos/photo_i.jpg
+const PHOTOS = COORDS.map(([lat, lng], i) => ({ file: "photos/photo_" + (i + 1) + ".jpg", lat, lng }));
+
+const ROUNDS = 5;            // nombre de manches par partie
+const CENTER = [48.7099, 2.1693]; // centre du campus
+const START_ZOOM = 16;
+const SCALE_M = 100;         // plus il est grand, plus le barème est indulgent
+const MAX_POINTS = 5000;     // points max par manche
+
+/* ============ JEU ============ */
+
+const $ = (id) => document.getElementById(id);
+let round = 0, total = 0, order = [], guess = null, locked = false;
+let guessMarker = null, trueMarker = null, line = null;
+
+// Carte
+const ign = L.tileLayer(
+  "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
+  { maxNativeZoom: 19, maxZoom: 20, attribution: "Photos aériennes © IGN / Géoplateforme" }
+);
+const sat = L.tileLayer(
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  { maxZoom: 19, attribution: "Imagerie © Esri" }
+);
+const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { maxZoom: 19, attribution: "© contributeurs OpenStreetMap" });
+
+const map = L.map("map", { center: CENTER, zoom: START_ZOOM, layers: [ign], zoomControl: true });
+L.control.layers({ "Satellite IGN (récent)": ign, "Satellite Esri": sat, "Plan": osm }, null, { position: "topright" }).addTo(map);
+
+map.on("click", (e) => {
+  if (locked) return;
+  guess = e.latlng;
+  if (guessMarker) guessMarker.setLatLng(guess);
+  else guessMarker = L.circleMarker(guess, { radius: 8, color: "#10252d", weight: 3, fillColor: "#f0b429", fillOpacity: 1 }).addTo(map);
+  $("guess").disabled = false;
+  $("guess").textContent = "Valider ma réponse";
+});
+
+function resizeMap() { setTimeout(() => map.invalidateSize(), 260); }
+$("mapwrap").addEventListener("mouseenter", resizeMap);
+$("mapwrap").addEventListener("mouseleave", resizeMap);
+$("toggle").addEventListener("click", () => {
+  const open = $("mapwrap").classList.toggle("open");
+  $("toggle").textContent = open ? "Réduire la carte" : "Agrandir la carte";
+  resizeMap();
+});
+
+// Photo
+$("stage").addEventListener("click", (e) => { if (e.target.id === "photo") $("stage").classList.toggle("cover"); });
+$("photo").addEventListener("error", () => {
+  const m = $("missing");
+  m.style.display = "block";
+  m.textContent = "Photo introuvable : " + order[round].file;
+});
+$("photo").addEventListener("load", () => { $("missing").style.display = "none"; });
+
+function shuffle(a) {
+  a = a.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+function distance(a, b) { // haversine, en mètres
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function showEmpty() {
+  $("missing").style.display = "block";
+  $("missing").textContent = "Aucune photo dans photos.js pour l’instant.";
+  $("guess").disabled = true;
+}
+
+function newGame() {
+  order = shuffle(PHOTOS).slice(0, Math.min(ROUNDS, PHOTOS.length));
+  round = 0; total = 0;
+  $("score").textContent = "0 pts";
+  startRound();
+}
+
+function startRound() {
+  locked = false; guess = null;
+  [guessMarker, trueMarker, line].forEach((l) => l && map.removeLayer(l));
+  guessMarker = trueMarker = line = null;
+  $("result").style.display = "none";
+  $("result").classList.remove("corner");
+  $("stage").classList.remove("cover");
+  $("mapwrap").classList.remove("open");
+  $("toggle").textContent = "Agrandir la carte";
+  $("guess").disabled = true;
+  $("guess").textContent = "Clique sur la carte pour placer ton point";
+  $("round").textContent = "Manche " + (round + 1) + " / " + order.length;
+  $("photo").src = order[round].file;
+  map.setView(CENTER, START_ZOOM);
+  resizeMap();
+}
+
+$("guess").addEventListener("click", () => {
+  if (!guess || locked) return;
+  locked = true;
+  const t = order[round];
+  const d = distance(guess, t);
+  const pts = Math.round(MAX_POINTS * Math.exp(-d / SCALE_M));
+  total += pts;
+  $("score").textContent = total + " pts";
+
+  trueMarker = L.circleMarker([t.lat, t.lng], { radius: 9, color: "#fff", weight: 3, fillColor: "#2f9e6b", fillOpacity: 1 }).addTo(map);
+  line = L.polyline([guess, [t.lat, t.lng]], { color: "#d2493f", weight: 3, dashArray: "6 8" }).addTo(map);
+
+  $("mapwrap").classList.add("open");
+  $("toggle").textContent = "Réduire la carte";
+  setTimeout(() => { map.invalidateSize(); map.fitBounds(L.latLngBounds([guess, [t.lat, t.lng]]), { padding: [50, 50], maxZoom: 19 }); }, 280);
+
+  const last = round === order.length - 1;
+  $("resTitle").textContent = d < 15 ? "En plein dans le mille" : d < 80 ? "Tout près" : "À " + Math.round(d) + " m";
+  $("resText").textContent = (d < 15 ? "Moins de 15 m d’écart. " : "") + "Distance : " + Math.round(d) + " m. Tu gagnes " + pts + " points" + (last ? ". Partie terminée : " + total + " / " + (MAX_POINTS * order.length) + "." : ".");
+  $("next").textContent = last ? "Voir mon score" : "Manche suivante";
+  $("result").classList.add("corner");
+  $("result").style.display = "block";
+});
+
+$("next").addEventListener("click", () => {
+  if (round === order.length - 1) showEnd();
+  else { round++; startRound(); }
+});
+
+/* ============ CLASSEMENT & FIN DE PARTIE ============ */
+
+function ordinal(n) { return n === 1 ? "1er" : n + "e"; }
+
+function renderScores(ol, rows) {
+  ol.textContent = "";
+  if (!rows.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "Aucun score pour l’instant"; ol.appendChild(li); return; }
+  rows.forEach((r, i) => {
+    const li = document.createElement("li");
+    const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
+    const who = document.createElement("span"); who.className = "who"; who.textContent = r.pseudo;
+    const pts = document.createElement("span"); pts.className = "pts"; pts.textContent = r.score;
+    li.append(pos, who, pts); ol.appendChild(li);
+  });
+}
+
+async function refreshBoard() {
+  try {
+    const rows = await Scoreboard.top(3);
+    renderScores($("boardList"), rows);
+    renderScores($("endTopList"), rows);
+  } catch {
+    $("boardList").innerHTML = '<li class="empty">Classement indisponible</li>';
+  }
+}
+
+function endMessage(rank, ratio) {
+  if (rank === 1) return "Nouveau record ! Tu règnes sur le campus.";
+  if (rank <= 3) return "Sur le podium, bravo !";
+  if (ratio >= 0.8) return "Tu connais le campus comme ta poche.";
+  if (ratio >= 0.5) return "Pas mal du tout, tu as de bons repères.";
+  if (ratio >= 0.25) return "Pas mal, mais le campus a encore des secrets pour toi.";
+  return "Il est temps d’aller explorer le campus !";
+}
+
+function showEnd() {
+  $("result").style.display = "none";
+  $("endScore").textContent = total;
+  $("endMax").textContent = "/ " + (MAX_POINTS * order.length);
+  $("endResult").hidden = true;
+  $("pseudoForm").hidden = false;
+  $("saveBtn").disabled = false;
+  $("saveBtn").textContent = "Enregistrer mon score";
+  try { $("pseudo").value = localStorage.getItem("geoguessr_pseudo") || ""; } catch {}
+  $("end").style.display = "flex";
+  $("pseudo").focus();
+}
+
+$("pseudoForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const pseudo = $("pseudo").value.trim();
+  if (!pseudo) return;
+  try { localStorage.setItem("geoguessr_pseudo", pseudo); } catch {}
+  $("saveBtn").disabled = true; $("saveBtn").textContent = "Enregistrement…";
+  const ratio = total / (MAX_POINTS * order.length);
+  try {
+    const { rank, total: nb } = await Scoreboard.submit(pseudo, total);
+    $("endRank").innerHTML = "";
+    $("endRank").append("Tu es " + ordinal(rank));
+    const sub = document.createElement("small"); sub.textContent = "sur " + nb + " score" + (nb > 1 ? "s" : "") + " enregistré" + (nb > 1 ? "s" : ""); $("endRank").appendChild(sub);
+    $("endMsg").textContent = endMessage(rank, ratio);
+  } catch {
+    $("endRank").textContent = "Score non enregistré";
+    $("endMsg").textContent = "Le classement est injoignable pour le moment. " + endMessage(99, ratio);
+  }
+  await refreshBoard();
+  $("pseudoForm").hidden = true;
+  $("endResult").hidden = false;
+  $("replay").focus();
+});
+
+$("replay").addEventListener("click", () => { $("end").style.display = "none"; newGame(); });
+
+refreshBoard();
+
+// Photos proposées par les élèves et validées (approved = true) dans Supabase
+async function loadRemotePhotos() {
+  if (typeof SUPABASE_URL !== "string" || typeof SUPABASE_KEY !== "string"
+      || SUPABASE_URL.includes("VOTRE-PROJET") || SUPABASE_KEY.includes("VOTRE_CLE")) return;
+  const root = SUPABASE_URL.replace(/\/$/, "");
+  try {
+    const r = await fetch(root + "/rest/v1/photos?select=lat,lng,path&approved=eq.true", {
+      headers: { apikey: SUPABASE_KEY, ...(SUPABASE_KEY.startsWith("eyJ") ? { Authorization: "Bearer " + SUPABASE_KEY } : {}) },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!r.ok) return;
+    (await r.json()).forEach((p) => PHOTOS.push({ file: root + "/storage/v1/object/public/photos/" + p.path, lat: p.lat, lng: p.lng }));
+  } catch {}
+}
+loadRemotePhotos().then(() => { if (PHOTOS.length) newGame(); else showEmpty(); });
+</script>
+</body>
+</html>

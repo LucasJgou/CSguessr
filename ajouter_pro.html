@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Outil d’ajout – GeoGuessr CentraleSupélec</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#10252d; --paper:#f5f6f2; --line:#c9d0cb; --signal:#f0b429; --good:#2f9e6b; --bad:#d2493f;
+          --font:"Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--ink); color: var(--paper); min-height: 100vh; }
+  main { max-width: 760px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 32px; }
+  h1 { font-size: 1.7rem; font-weight: 800; margin: .5rem 0 .25rem; }
+  p.lead { margin: 0 0 1.25rem; color: #c3cec9; max-width: 60ch; }
+  a { color: var(--signal); }
+  .step { background: rgba(255,255,255,.06); border-radius: 14px; padding: 1rem; margin-bottom: 1rem; }
+  .step h2 { font-size: 1.05rem; margin: 0 0 .6rem; }
+  input[type=file] { width: 100%; padding: .7rem; border: 1px dashed var(--line); border-radius: 10px; background: transparent; color: var(--paper); font: inherit; }
+  #preview { display: none; width: 100%; max-height: 280px; object-fit: contain; margin-top: .75rem; border-radius: 10px; background: #0a1a20; }
+  #map { height: 360px; border-radius: 12px; }
+  #send { width: 100%; border: 0; border-radius: 12px; padding: 1rem; font: 800 1.05rem var(--font); background: var(--signal); color: var(--ink); cursor: pointer; }
+  #send:disabled { background: var(--line); color: #6a7771; cursor: not-allowed; }
+  #send:focus-visible, input:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+  #msg { margin-top: .9rem; font-weight: 600; min-height: 1.4em; }
+  button.alt { border: 0; border-radius: 10px; padding: .7rem 1rem; font: 700 .95rem var(--font); background: var(--paper); color: var(--ink); cursor: pointer; }
+  .hint { font-size: .9rem; color: #c3cec9; margin: .5rem 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <a href="index.html">Retour au jeu</a>
+  <h1>Préparer une photo</h1>
+  <p class="lead">Choisis la photo, place le point exact, puis clique sur « Ajouter » : la photo est renommée et photos.js est mis à jour automatiquement.</p>
+
+  <div class="step" id="folderStep">
+    <h2>0. Choisis le dossier du jeu (une seule fois)</h2>
+    <button id="pick" type="button" class="alt">Choisir le dossier du projet</button>
+    <p class="hint" id="folderInfo">Sélectionne le dossier qui contient index.html et photos.js. Le navigateur te demandera l’autorisation d’y écrire. (Chrome / Edge sur ordinateur.)</p>
+  </div>
+
+  <div class="step">
+    <h2>1. Choisis ta photo</h2>
+    <input type="file" id="file" accept="image/*">
+    <img id="preview" alt="Aperçu de la photo choisie">
+    
+  </div>
+
+  <div class="step">
+    <h2>2. Place le point exact</h2>
+    <div id="map"></div>
+    <p class="hint" id="coords">Zoome puis clique à l’endroit où tu as pris la photo.</p>
+  </div>
+
+  <button id="send" type="button" disabled>Ajouter la photo</button>
+  <pre id="line" style="display:none;margin-top:1rem;padding:.8rem;border-radius:10px;background:rgba(255,255,255,.08);overflow:auto"></pre>
+  <div id="msg" role="status" aria-live="polite"></div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="photos.js"></script>
+<script>
+const CENTER = [48.7099, 2.1693];
+const MAX_SIDE = 1600;
+const $ = (id) => document.getElementById(id);
+let blob = null, point = null, marker = null, added = 0;
+
+const ign = L.tileLayer(
+  "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
+  { maxNativeZoom: 19, maxZoom: 20, attribution: "Photos aériennes © IGN / Géoplateforme" }
+);
+const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  { maxZoom: 19, attribution: "Imagerie © Esri" });
+const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { maxZoom: 19, attribution: "© contributeurs OpenStreetMap" });
+const map = L.map("map", { center: CENTER, zoom: 16, layers: [ign] });
+L.control.layers({ "Satellite IGN (récent)": ign, "Satellite Esri": sat, "Plan": osm }).addTo(map);
+
+map.on("click", (e) => {
+  point = e.latlng;
+  if (marker) marker.setLatLng(point);
+  else marker = L.circleMarker(point, { radius: 8, color: "#10252d", weight: 3, fillColor: "#f0b429", fillOpacity: 1 }).addTo(map);
+  $("coords").textContent = "Point placé : " + point.lat.toFixed(5) + ", " + point.lng.toFixed(5);
+  refresh();
+});
+
+// Réduit la photo à 1600 px max et la ré-encode en JPEG (retire aussi les données EXIF, dont le GPS du téléphone)
+async function compress(file) {
+  const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const k = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise((res) => c.toBlob(res, "image/jpeg", 0.82));
+}
+
+$("file").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  blob = null; $("preview").style.display = "none"; $("msg").textContent = "";
+  if (!f) return refresh();
+  try {
+    blob = await compress(f);
+    $("preview").src = URL.createObjectURL(blob);
+    $("preview").style.display = "block";
+  } catch { $("msg").textContent = "Format d’image non lu. Essaie une photo JPEG ou PNG."; }
+  refresh();
+});
+
+function refresh() { $("send").disabled = !(blob && point); }
+
+let dir = null;           // dossier du projet (File System Access)
+let nextN = null;         // numéro de la prochaine photo
+const PAIR = /\[\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\]/g;
+const hasFS = "showDirectoryPicker" in window;
+if (!hasFS) $("folderInfo").textContent = "Ce navigateur ne peut pas écrire dans un dossier : utilise Chrome ou Edge sur ordinateur. Sinon, la photo sera téléchargée et la ligne copiée, comme avant.";
+
+async function readPhotosJs() {
+  const fh = await dir.getFileHandle("photos.js");
+  const text = await (await fh.getFile()).text();
+  const start = text.indexOf("const COORDS");
+  const end = text.lastIndexOf("];");
+  if (start < 0 || end < 0) throw new Error("photos.js ne contient pas « const COORDS = [ … ]; ».");
+  return { fh, text, start, end };
+}
+
+$("pick").addEventListener("click", async () => {
+  if (!hasFS) return;
+  try {
+    dir = await window.showDirectoryPicker({ mode: "readwrite" });
+    const { text, start, end } = await readPhotosJs();
+    const count = (text.slice(start, end).match(PAIR) || []).length;
+    nextN = count + 1;
+    $("folderInfo").textContent = "Dossier « " + dir.name + " » connecté : " + count + " photo(s) déjà listée(s). La prochaine sera photo_" + nextN + ".jpg.";
+  } catch (err) {
+    dir = null;
+    if (err.name !== "AbortError") $("folderInfo").textContent = "Impossible d’utiliser ce dossier : " + (err.message || err.name) + " (as-tu choisi le dossier qui contient photos.js ?)";
+  }
+});
+
+async function saveToFolder(name, lat, lng) {
+  const { fh, text, end } = await readPhotosJs();
+  // 1. photo dans photos/
+  const pdir = await dir.getDirectoryHandle("photos", { create: true });
+  const ph = await pdir.getFileHandle(name, { create: true });
+  let w = await ph.createWritable(); await w.write(blob); await w.close();
+  // 2. ligne dans photos.js (virgule ajoutée si la dernière entrée n'en a pas)
+  let body = text.slice(0, end);
+  const start = body.indexOf("const COORDS");
+  const pairs = [...body.slice(start).matchAll(PAIR)];
+  if (pairs.length) {
+    const last = pairs[pairs.length - 1];
+    const pos = start + last.index + last[0].length;
+    if (!/^\s*,/.test(body.slice(pos))) body = body.slice(0, pos) + "," + body.slice(pos);
+  }
+  const entry = "  [" + lat + ", " + lng + "],   // " + name;
+  const out = body.replace(/\s*$/, "") + "\n" + entry + "\n" + text.slice(end);
+  w = await fh.createWritable(); await w.write(out); await w.close();
+  return entry;
+}
+
+function resetForm() {
+  $("file").value = ""; blob = null; $("preview").style.display = "none";
+  if (marker) { map.removeLayer(marker); marker = null; } point = null;
+  $("coords").textContent = "Zoome puis clique à l’endroit où tu as pris la photo.";
+  refresh();
+}
+
+$("send").addEventListener("click", async () => {
+  const lat = point.lat.toFixed(6), lng = point.lng.toFixed(6);
+  $("send").disabled = true;
+  try {
+    if (dir) {
+      const { text, start, end } = await readPhotosJs(); // recompte à chaque fois
+      const n = (text.slice(start, end).match(PAIR) || []).length + 1;
+      const name = "photo_" + n + ".jpg";
+      const entry = await saveToFolder(name, lat, lng);
+      $("line").style.display = "block"; $("line").textContent = entry;
+      $("msg").style.color = "#7fe0ae";
+      $("msg").textContent = name + " ajoutée dans photos/ et photos.js mis à jour. Recharge le jeu pour la voir.";
+      $("folderInfo").textContent = "Dossier « " + dir.name + " » connecté : prochaine photo = photo_" + (n + 1) + ".jpg.";
+    } else {
+      // Repli : téléchargement + ligne à coller
+      const n = COORDS.length + 1 + added;
+      const name = "photo_" + n + ".jpg";
+      const entry = "  [" + lat + ", " + lng + "],   // " + name;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = name; a.click();
+      try { await navigator.clipboard.writeText(entry); } catch {}
+      $("line").style.display = "block"; $("line").textContent = entry;
+      $("msg").style.color = "#7fe0ae";
+      $("msg").textContent = name + " téléchargée. Mets-la dans photos/ et colle la ligne dans photos.js, avant le « ]; ».";
+      added++;
+    }
+    resetForm();
+  } catch (err) {
+    $("msg").style.color = "#ff8f86";
+    $("msg").textContent = "Échec de l’ajout : " + (err.message || err.name);
+    refresh();
+  }
+});
+</script>
+</body>
+</html>
