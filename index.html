@@ -72,7 +72,7 @@
   #toggle { display: none; position: absolute; top: 8px; left: 8px; z-index: 1000; border: 0; border-radius: 8px; padding: .4rem .7rem; font: 600 .85rem var(--font); background: var(--ink); color: var(--paper); }
   #guess { border: 0; padding: .9rem; font: 800 1rem var(--font); background: var(--signal); color: var(--ink); cursor: pointer; }
   #guess:disabled { background: var(--line); color: #6a7771; cursor: not-allowed; }
-  #guess:focus-visible, #next:focus-visible, #toggle:focus-visible { outline: 3px solid var(--ink); outline-offset: -3px; }
+  #guess:focus-visible, #toggle:focus-visible { outline: 3px solid var(--ink); outline-offset: -3px; }
   @media (hover: none) { #mapwrap:hover:not(.open) { width: min(340px, 46vw); height: min(240px, 32vh); } #toggle { display: block; } }
 
   /* Résultat */
@@ -84,7 +84,6 @@
   }
   #result h2 { margin: 0 0 .25rem; font-size: 1.6rem; font-weight: 800; }
   #result p { margin: .25rem 0 1rem; font-size: 1.05rem; }
-  #next { width: 100%; border: 0; border-radius: 10px; padding: .85rem; font: 800 1rem var(--font); background: var(--ink); color: var(--paper); cursor: pointer; }
   #result.corner { top: auto; bottom: 12px; left: 12px; transform: none; width: min(300px, calc(100vw - 24px)); z-index: 600; padding: 1rem; }
   #result.corner h2 { font-size: 1.2rem; }
   #result.corner p { font-size: .95rem; }
@@ -165,7 +164,6 @@
 <div id="result" role="dialog" aria-live="polite">
   <h2 id="resTitle"></h2>
   <p id="resText"></p>
-  <button id="next" type="button">Manche suivante</button>
 </div>
 
 <div id="end" role="dialog" aria-modal="true" aria-labelledby="endTitle">
@@ -175,7 +173,7 @@
 
     <form id="pseudoForm">
       <label for="pseudo">Ton pseudo pour le classement</label>
-      <input id="pseudo" maxlength="16" autocomplete="nickname" required placeholder="Ex : Skibidi Du 22 Pro Player">
+      <input id="pseudo" maxlength="16" autocomplete="nickname" required placeholder="Ex : Marie">
       <button type="submit" id="saveBtn">Enregistrer mon score</button>
     </form>
 
@@ -297,9 +295,21 @@ function startRound() {
   resizeMap();
 }
 
+let lockedAt = 0;
+
+function goNext() {
+  if (round === order.length - 1) showEnd();
+  else { round++; startRound(); }
+}
+
 $("guess").addEventListener("click", () => {
-  if (!guess || locked) return;
-  locked = true;
+  if (locked) {
+    // petite pause anti double-clic : évite de sauter le résultat sans l'avoir vu
+    if (Date.now() - lockedAt > 700) goNext();
+    return;
+  }
+  if (!guess) return;
+  locked = true; lockedAt = Date.now();
   const t = order[round];
   const d = distance(guess, t);
   const pts = Math.round(MAX_POINTS * Math.exp(-d / SCALE_M));
@@ -316,14 +326,10 @@ $("guess").addEventListener("click", () => {
   const last = round === order.length - 1;
   $("resTitle").textContent = d < 15 ? "En plein dans le mille" : d < 80 ? "Tout près" : "À " + Math.round(d) + " m";
   $("resText").textContent = (d < 15 ? "Moins de 15 m d’écart. " : "") + "Distance : " + Math.round(d) + " m. Tu gagnes " + pts + " points" + (last ? ". Partie terminée : " + total + " / " + (MAX_POINTS * order.length) + "." : ".");
-  $("next").textContent = last ? "Voir mon score" : "Manche suivante";
+  $("guess").disabled = false;
+  $("guess").textContent = last ? "Voir mon score" : "Manche suivante";
   $("result").classList.add("corner");
   $("result").style.display = "block";
-});
-
-$("next").addEventListener("click", () => {
-  if (round === order.length - 1) showEnd();
-  else { round++; startRound(); }
 });
 
 /* ============ CLASSEMENT & FIN DE PARTIE ============ */
@@ -426,3 +432,4 @@ loadRemotePhotos().then(() => { if (PHOTOS.length) newGame(); else showEmpty(); 
 </script>
 </body>
 </html>
+
