@@ -76,6 +76,7 @@
       <button class="ghost" id="logout" type="button">Se déconnecter</button>
     </div>
     <div class="grid" id="list"></div>
+    <p style="text-align:center"><button class="ghost" id="moreBtn" type="button" hidden>Charger plus de photos</button></p>
   </section>
 </main>
 
@@ -124,7 +125,7 @@ $("loginForm").addEventListener("submit", async (e) => {
 });
 
 $("logout").addEventListener("click", () => showLogin("Déconnecté."));
-$("reload").addEventListener("click", load);
+$("reload").addEventListener("click", () => load());
 $("tabPending").addEventListener("click", () => setView("pending"));
 $("tabApproved").addEventListener("click", () => setView("approved"));
 
@@ -146,28 +147,50 @@ function tiles() {
   return { ign, osm };
 }
 
-async function load() {
-  say("Chargement…");
-  maps.forEach((m) => m.remove()); maps = [];
-  $("list").textContent = "";
+const PAGE = 20;
+let offset = 0, total = null;
+
+function updateCount() {
+  const shown = $("list").querySelectorAll(".card").length;
+  const label = view === "pending" ? "en attente" : "validée(s)";
+  $("count").textContent = shown ? (total !== null ? shown + " / " + total : shown) + " " + label : "";
+  $("moreBtn").hidden = !shown || (total !== null ? offset >= total : shown % PAGE !== 0);
+}
+
+// reset = true : repart de la première page ; false : ajoute la page suivante
+async function load(reset = true) {
+  if (reset) {
+    say("Chargement…");
+    maps.forEach((m) => m.remove()); maps = [];
+    $("list").textContent = "";
+    offset = 0; total = null; $("moreBtn").hidden = true;
+  }
+  $("moreBtn").disabled = true;
   try {
-    const filter = view === "pending" ? "approved=eq.false" : "approved=eq.true";
-    const r = await api("/rest/v1/photos?select=id,created_at,lat,lng,path&" + filter + "&order=created_at.asc&limit=20");
+    const filter = view === "pending" ? "approved=eq.false&order=created_at.asc" : "approved=eq.true&order=created_at.desc";
+    const r = await api("/rest/v1/photos?select=id,created_at,lat,lng,path&" + filter + "&limit=" + PAGE + "&offset=" + offset,
+      { headers: { Prefer: "count=exact" } });
     if (r.status === 401) return showLogin("Session expirée, reconnecte-toi.");
     if (!r.ok) throw new Error("HTTP " + r.status);
+    const n = parseInt((r.headers.get("Content-Range") || "").split("/")[1], 10);
+    if (!isNaN(n)) total = n;
     const rows = await r.json();
     say("");
-    $("count").textContent = rows.length + (rows.length === 20 ? "+" : "") + (view === "pending" ? " en attente" : " validée(s)");
-    if (!rows.length) {
+    if (!rows.length && reset) {
       const d = document.createElement("p"); d.className = "empty";
       d.textContent = view === "pending"
         ? "Aucune photo en attente. (Si tu sais qu’il y en a, vérifie que moderation.sql a été exécuté avec ton adresse e-mail.)"
         : "Aucune photo validée.";
-      $("list").appendChild(d); return;
+      $("list").appendChild(d); $("count").textContent = ""; return;
     }
     rows.forEach(addCard);
+    offset += rows.length;
+    updateCount();
   } catch (err) { say("Chargement impossible : " + err.message, false); }
+  finally { $("moreBtn").disabled = false; }
 }
+
+$("moreBtn").addEventListener("click", () => load(false));
 
 function btn(text, cls, fn) {
   const b = document.createElement("button"); b.type = "button"; b.textContent = text; if (cls) b.className = cls;
@@ -196,7 +219,10 @@ function addCard(p) {
   const actions = document.createElement("div"); actions.className = "actions";
   let newPt = null;
 
-  const done = () => { card.remove(); const n = $("list").children.length; $("count").textContent = n ? n + " affichée(s)" : ""; if (!n) load(); };
+  const done = () => {
+    card.remove(); offset = Math.max(0, offset - 1); if (total !== null) total = Math.max(0, total - 1);
+    if (!$("list").querySelector(".card")) load(); else updateCount();
+  };
 
   async function patch(b, body, okText) {
     b.disabled = true;
