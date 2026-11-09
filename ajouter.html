@@ -9,10 +9,12 @@
 </script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Proposer une photo – GeoGuessr CentraleSupélec</title>
+
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,6 +28,7 @@
   h1 { font-size: 1.7rem; font-weight: 800; margin: .5rem 0 .25rem; }
   p.lead { margin: 0 0 1.25rem; color: #c3cec9; max-width: 60ch; }
   a { color: var(--signal); }
+  .topbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
   .step { background: rgba(255,255,255,.06); border-radius: 14px; padding: 1rem; margin-bottom: 1rem; }
   .step h2 { font-size: 1.05rem; margin: 0 0 .6rem; }
   input[type=file] { width: 100%; padding: .7rem; border: 1px dashed var(--line); border-radius: 10px; background: transparent; color: var(--paper); font: inherit; }
@@ -41,30 +44,30 @@
 </head>
 <body>
 <main>
-  <a href="index.html">Retour au jeu</a>
-  <h1>Proposer une photo</h1>
-  <p class="lead">Dépose ta photo, place le point exact où elle a été prise, puis envoie. Ta proposition sera vérifiée avant d’apparaître dans le jeu.</p>
-  <p class="lead">CONSIGNE : votre photo doit être politiquement correcte, évitez d'être trop personnel, de préférance à l'extérieur parce que sinon c'est chiant sur la carte et il faut qu'en matière de difficulté ce soit difficile mais possible quand même...</p>
-    
+  <div class="topbar"><a href="index.html" data-i18n="back">Retour au jeu</a><span data-langswitch></span></div>
+  <h1 data-i18n="add.title">Proposer une photo</h1>
+  <p class="lead" data-i18n="add.lead">Dépose ta photo, place le point exact où elle a été prise, puis envoie. Ta proposition sera vérifiée avant d’apparaître dans le jeu.</p>
+
     <div class="step">
-    <h2>1. Choisis ta photo</h2>
+    <h2 data-i18n="add.step1">1. Choisis ta photo</h2>
     <input type="file" id="file" accept="image/*">
-    <img id="preview" alt="Aperçu de la photo choisie">
+    <img id="preview" data-i18n-alt="add.preview" alt="">
     
   </div>
 
   <div class="step">
-    <h2>2. Place le point exact</h2>
+    <h2 data-i18n="add.step2">2. Place le point exact</h2>
     <div id="map"></div>
-    <p class="hint" id="coords">Zoome puis clique à l’endroit où tu as pris la photo.</p>
+    <p class="hint" id="coords"></p>
   </div>
 
-  <button id="send" type="button" disabled>Envoyer la photo</button>
+  <button id="send" type="button" disabled data-i18n="add.send">Envoyer la photo</button>
     <div id="msg" role="status" aria-live="polite"></div>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="config.js"></script>
+<script src="i18n.js"></script>
 <script>
 const CENTER = [48.7099, 2.1693];
 const MAX_SIDE = 1600;
@@ -74,20 +77,20 @@ let blob = null, point = null, marker = null, added = 0;
 
 const ign = L.tileLayer(
   "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
-  { maxNativeZoom: 19, maxZoom: 20, attribution: "Photos aériennes © IGN / Géoplateforme" }
+  { maxNativeZoom: 19, maxZoom: 20, attribution: "© IGN / Géoplateforme" }
 );
 const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-  { maxZoom: 19, attribution: "Imagerie © Esri" });
+  { maxZoom: 19, attribution: "© Esri" });
 const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  { maxZoom: 19, attribution: "© contributeurs OpenStreetMap" });
+  { maxZoom: 19, attribution: "© OpenStreetMap" });
 const map = L.map("map", { center: CENTER, zoom: 16, layers: [ign] });
-L.control.layers({ "Satellite IGN (récent)": ign, "Satellite Esri": sat, "Plan": osm }).addTo(map);
+L.control.layers({ "Satellite IGN": ign, "Satellite Esri": sat, "OpenStreetMap": osm }).addTo(map);
 
 map.on("click", (e) => {
   point = e.latlng;
   if (marker) marker.setLatLng(point);
   else marker = L.circleMarker(point, { radius: 8, color: "#10252d", weight: 3, fillColor: "#f0b429", fillOpacity: 1 }).addTo(map);
-  $("coords").textContent = "Point placé : " + point.lat.toFixed(5) + ", " + point.lng.toFixed(5);
+  renderCoords();
   refresh();
 });
 
@@ -113,9 +116,17 @@ $("file").addEventListener("change", async (e) => {
     blob = await compress(f);
     $("preview").src = URL.createObjectURL(blob);
     $("preview").style.display = "block";
-  } catch { $("msg").textContent = "Format d’image non lu. Essaie une photo JPEG ou PNG."; }
+  } catch { $("msg").textContent = tr("add.badFormat"); }
   refresh();
 });
+
+function renderCoords() {
+  $("coords").textContent = point
+    ? tr("add.placed", { lat: point.lat.toFixed(5), lng: point.lng.toFixed(5) })
+    : tr("add.hint");
+}
+document.addEventListener("langchange", renderCoords);
+renderCoords();
 
 function refresh() { $("send").disabled = !(blob && point); }
 
@@ -126,20 +137,20 @@ const configured = typeof SUPABASE_URL === "string" && typeof SUPABASE_KEY === "
 function resetForm() {
   $("file").value = ""; blob = null; $("preview").style.display = "none";
   if (marker) { map.removeLayer(marker); marker = null; } point = null;
-  $("coords").textContent = "Zoome puis clique à l’endroit où tu as pris la photo.";
+  renderCoords();
   refresh();
 }
 
 function fail(text) { $("msg").style.color = "#ff8f86"; $("msg").textContent = text; refresh(); }
 
 $("send").addEventListener("click", async () => {
-  if (!configured) return fail("Supabase n’est pas configuré : remplis config.js (URL et clé).");
+  if (!configured) return fail(tr("add.noConfig"));
   // Même zone que la règle SQL : évite un rejet incompréhensible
   if (point.lat < 48.69 || point.lat > 48.73 || point.lng < 2.14 || point.lng > 2.20)
-    return fail("Le point est en dehors du campus. Replace-le sur la carte.");
+    return fail(tr("add.outside"));
 
   $("send").disabled = true;
-  $("msg").style.color = ""; $("msg").textContent = "Envoi en cours…";
+  $("msg").style.color = ""; $("msg").textContent = tr("add.sending");
   const root = SUPABASE_URL.replace(/\/$/, "");
   const auth = { apikey: SUPABASE_KEY, ...(SUPABASE_KEY.startsWith("eyJ") ? { Authorization: "Bearer " + SUPABASE_KEY } : {}) };
   const path = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2)) + ".jpg";
@@ -149,20 +160,20 @@ $("send").addEventListener("click", async () => {
     const up = await fetch(root + "/storage/v1/object/photos/" + path, {
       method: "POST", headers: { ...auth, "Content-Type": "image/jpeg" }, body: blob
     });
-    if (!up.ok) throw new Error("envoi de la photo refusé (" + up.status + ")");
+    if (!up.ok) throw new Error(tr("add.upRefused", { s: up.status }));
     // 2. les coordonnées
     const ins = await fetch(root + "/rest/v1/photos", {
       method: "POST",
       headers: { ...auth, "Content-Type": "application/json", Prefer: "return=minimal" },
       body: JSON.stringify({ lat: +point.lat.toFixed(6), lng: +point.lng.toFixed(6), path })
     });
-    if (!ins.ok) throw new Error("enregistrement des coordonnées refusé (" + ins.status + ")");
+    if (!ins.ok) throw new Error(tr("add.insRefused", { s: ins.status }));
 
     $("msg").style.color = "#7fe0ae";
-    $("msg").textContent = "Photo envoyée, merci ! Elle apparaîtra dans le jeu après validation.";
+    $("msg").textContent = tr("add.sent");
     resetForm();
   } catch (err) {
-    fail("Échec de l’envoi : " + (err.message || "connexion impossible") + ". Réessaie dans un instant.");
+    fail(tr("add.fail", { err: err.message || tr("add.conn") }));
   }
 });
 </script>
