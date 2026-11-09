@@ -9,10 +9,12 @@
 </script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Classement général – GeoGuessr CentraleSupélec</title>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
@@ -22,6 +24,7 @@
   body { margin: 0; font-family: var(--font); background: var(--ink); color: var(--paper); min-height: 100vh; }
   main { max-width: 640px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 40px; }
   a { color: var(--signal); }
+  .topbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
   h1 { font-size: 1.9rem; font-weight: 800; margin: .5rem 0 .25rem; }
   .lead { margin: 0 0 1.25rem; color: #c3cec9; }
   .note { background: rgba(240,180,41,.15); border-left: 4px solid var(--signal); padding: .6rem .8rem; border-radius: 6px; margin-bottom: 1rem; font-size: .95rem; }
@@ -43,22 +46,24 @@
 </head>
 <body>
 <main>
-  <a href="index.html">Retour au jeu</a>
-  <h1>Classement général</h1>
-  <p class="lead" id="lead">Les meilleurs scores de tous les joueurs.</p>
-  <div class="note" id="localnote" hidden>Supabase n’est pas configuré : ce classement est enregistré uniquement dans ce navigateur.</div>
+  <div class="topbar"><a href="index.html" data-i18n="back">Retour au jeu</a><span data-langswitch></span></div>
+  <h1 data-i18n="cl.title">Classement général</h1>
+  <p class="lead" data-i18n="cl.lead">Les meilleurs scores de tous les joueurs.</p>
+  <div class="note" id="localnote" data-i18n="cl.localnote" hidden>Supabase n’est pas configuré : ce classement est enregistré uniquement dans ce navigateur.</div>
   <ol id="list" aria-live="polite"></ol>
-  <div id="status">Chargement…</div>
-  <button id="more" type="button" hidden>Voir plus</button>
-  <a class="play" href="index.html">Jouer</a>
+  <div id="status" data-i18n="cl.loading">Chargement…</div>
+  <button id="more" type="button" data-i18n="cl.more" hidden>Voir plus</button>
+  <a class="play" href="index.html" data-i18n="cl.play">Jouer</a>
 </main>
 
 <script src="config.js"></script>
 <script src="scoreboard.js"></script>
+<script src="i18n.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const STEP = 50;
 let limit = STEP;
+let rows = null, errText = null;
 let me = "";
 try { me = (localStorage.getItem("geoguessr_pseudo") || "").trim().toLowerCase(); } catch {}
 if (!Scoreboard.shared) $("localnote").hidden = false;
@@ -67,35 +72,38 @@ function row(r, i) {
   const li = document.createElement("li");
   if (i < 3) li.className = "top";
   if (me && r.pseudo.trim().toLowerCase() === me) li.classList.add("me");
-  const rk = document.createElement("span"); rk.className = "rk"; rk.textContent = i === 0 ? "1er" : (i + 1) + "e";
+  const rk = document.createElement("span"); rk.className = "rk"; rk.textContent = ordinal(i + 1);
   const who = document.createElement("span"); who.className = "who"; who.textContent = r.pseudo;
   if (r.created_at) {
     const d = document.createElement("small");
-    d.textContent = new Date(r.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+    d.textContent = new Date(r.created_at).toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" });
     who.appendChild(d);
   }
-  const pts = document.createElement("span"); pts.className = "pts"; pts.textContent = r.score + " pts";
+  const pts = document.createElement("span"); pts.className = "pts"; pts.textContent = r.score + " " + tr("pts");
   li.append(rk, who, pts);
   return li;
 }
 
+// Dessine la liste à partir des données déjà chargées (appelé aussi quand la langue change)
+function render() {
+  const ol = $("list"); ol.textContent = "";
+  if (errText) { $("status").textContent = tr("cl.error", { err: errText }); $("more").hidden = true; return; }
+  if (!rows) return;
+  rows.forEach((r, i) => ol.appendChild(row(r, i)));
+  $("status").textContent = rows.length ? "" : tr("cl.empty");
+  $("more").hidden = rows.length < limit;
+}
+
 async function load() {
   $("more").disabled = true;
-  try {
-    const rows = await Scoreboard.all(limit);
-    const ol = $("list"); ol.textContent = "";
-    rows.forEach((r, i) => ol.appendChild(row(r, i)));
-    $("status").textContent = rows.length ? "" : "Aucun score pour l’instant. Sois le premier !";
-    $("lead").textContent = rows.length ? "Les meilleurs scores de tous les joueurs." : $("lead").textContent;
-    $("more").hidden = rows.length < limit;
-  } catch (err) {
-    console.error(err);
-    $("status").textContent = "Classement indisponible pour le moment. Détail : " + (err.message || err);
-  }
+  try { rows = await Scoreboard.all(limit); errText = null; }
+  catch (err) { console.error(err); errText = err.message || String(err); }
+  render();
   $("more").disabled = false;
 }
 
 $("more").addEventListener("click", () => { limit += STEP; load(); });
+document.addEventListener("langchange", render);
 load();
 </script>
 </body>
