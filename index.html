@@ -91,7 +91,13 @@
   .hudright { display: flex; gap: 8px; }
   #boardlink { pointer-events: auto; color: var(--paper); text-decoration: none; }
   #boardlink:hover, #boardlink:focus-visible { background: var(--signal); color: var(--ink); outline: none; }
-  @media (max-width: 560px) { .pill { font-size: .78rem; padding: .4rem .65rem; } #hud, .hudright { gap: 6px; } }
+  .hudright { margin-left: auto; align-items: center; }
+  @media (max-width: 640px) {
+    .pill { font-size: .78rem; padding: .4rem .65rem; }
+    #hud, .hudright { gap: 6px; }
+    #hud { flex-wrap: wrap; row-gap: 6px; }   /* sur téléphone : 2 lignes, rien ne sort de l'écran */
+    #board { top: calc(max(12px, env(safe-area-inset-top)) + 96px); }
+  }
   #addlink { pointer-events: auto; color: var(--paper); text-decoration: none; }
   #addlink:hover, #addlink:focus-visible { background: var(--signal); color: var(--ink); outline: none; }
   #missing a { color: var(--signal); }
@@ -266,7 +272,7 @@ function renderEnd() {
     const sub = document.createElement("small");
     sub.textContent = tr(endInfo.nb > 1 ? "end.outOfN" : "end.outOf1", { n: endInfo.nb });
     el.appendChild(sub);
-    $("endMsg").textContent = endMessage(endInfo.rank, endInfo.ratio);
+    $("endMsg").textContent = endInfo.best > endInfo.score ? tr("end.bestKept", { best: endInfo.best }) : endMessage(endInfo.rank, endInfo.ratio);
   } else {
     el.append(tr("end.saved"));
     $("endMsg").textContent = tr("end.noRank") + endMessage(99, endInfo.ratio);
@@ -431,8 +437,8 @@ $("pseudoForm").addEventListener("submit", async (e) => {
   $("saveBtn").disabled = true; $("saveBtn").textContent = tr("end.saving");
   const ratio = total / (MAX_POINTS * order.length);
   try {
-    const { rank, total: nb } = await Scoreboard.submit(pseudo, total);
-    endInfo = { rank, nb, ratio };
+    const { rank, total: nb, best } = await Scoreboard.submit(pseudo, total);
+    endInfo = { rank, nb, ratio, best, score: total };
   } catch (err) {
     console.error(err);
     endInfo = { err: err.message || String(err), ratio };
