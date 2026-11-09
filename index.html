@@ -137,21 +137,22 @@
 <body>
 
 <div id="stage">
-  <img id="photo" alt="Photo d’un lieu du campus à retrouver sur la carte">
+  <img id="photo" data-i18n-alt="photo.alt" alt="">
   <div id="missing"></div>
 </div>
 
 <div id="hud">
   <div class="pill" id="round">Manche 1 / 5</div>
-  <a class="pill" id="addlink" href="ajouter.html">Ajouter une photo</a>
+  <a class="pill" id="addlink" href="ajouter.html" data-i18n="add">Ajouter une photo</a>
   <div class="hudright">
-    <a class="pill" id="boardlink" href="classement.html">Classement général</a>
+    <span data-langswitch></span>
+    <a class="pill" id="boardlink" href="classement.html" data-i18n="board.link">Classement général</a>
     <div class="pill" id="score">0 pts</div>
   </div>
 </div>
 
-<aside id="board" aria-label="Classement des 3 meilleurs scores">
-  <h2>Top 3</h2>
+<aside id="board" data-i18n-aria-label="board.aria">
+  <h2 data-i18n="top3">Top 3</h2>
   <ol class="scores" id="boardList"></ol>
 </aside>
 
@@ -168,22 +169,22 @@
 
 <div id="end" role="dialog" aria-modal="true" aria-labelledby="endTitle">
   <div class="endcard">
-    <p class="eyebrow" id="endTitle">Partie terminée</p>
+    <p class="eyebrow" id="endTitle" data-i18n="end.title">Partie terminée</p>
     <div class="bigscore"><span id="endScore">0</span><small id="endMax">pts</small></div>
 
     <form id="pseudoForm">
-      <label for="pseudo">Ton pseudo pour le classement</label>
-      <input id="pseudo" maxlength="16" autocomplete="nickname" required placeholder="Ex : Shibidi du 22 Pro Player">
-      <button type="submit" id="saveBtn">Enregistrer mon score</button>
+      <label for="pseudo" data-i18n="end.label">Ton pseudo pour le classement</label>
+      <input id="pseudo" maxlength="16" autocomplete="nickname" required data-i18n-placeholder="end.placeholder" placeholder="Ex : Marie">
+      <button type="submit" id="saveBtn" data-i18n="end.save">Enregistrer mon score</button>
     </form>
 
     <div id="endResult" hidden>
       <div id="endRank"></div>
       <p id="endMsg"></p>
-      <h3>Meilleurs scores</h3>
+      <h3 data-i18n="end.top">Meilleurs scores</h3>
       <div id="endTop"><ol class="scores" id="endTopList"></ol></div>
-      <button type="button" id="replay">Rejouer</button>
-      <a class="secbtn" href="classement.html">Voir le classement général</a>
+      <button type="button" id="replay" data-i18n="end.replay">Rejouer</button>
+      <a class="secbtn" href="classement.html" data-i18n="end.viewBoard">Voir le classement général</a>
     </div>
   </div>
 </div>
@@ -191,6 +192,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="config.js"></script>
 <script src="scoreboard.js"></script>
+<script src="i18n.js"></script>
 <script src="photos.js"></script>
 <script>
 /* ============ À MODIFIER ============ */
@@ -213,44 +215,99 @@ let guessMarker = null, trueMarker = null, line = null;
 // Carte
 const ign = L.tileLayer(
   "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
-  { maxNativeZoom: 19, maxZoom: 20, attribution: "Photos aériennes © IGN / Géoplateforme" }
+  { maxNativeZoom: 19, maxZoom: 20, attribution: "© IGN / Géoplateforme" }
 );
 const sat = L.tileLayer(
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-  { maxZoom: 19, attribution: "Imagerie © Esri" }
+  { maxZoom: 19, attribution: "© Esri" }
 );
 const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  { maxZoom: 19, attribution: "© contributeurs OpenStreetMap" });
+  { maxZoom: 19, attribution: "© OpenStreetMap" });
 
 const map = L.map("map", { center: CENTER, zoom: START_ZOOM, layers: [ign], zoomControl: true });
-L.control.layers({ "Satellite IGN (récent)": ign, "Satellite Esri": sat, "Plan": osm }, null, { position: "topright" }).addTo(map);
+L.control.layers({ "Satellite IGN": ign, "Satellite Esri": sat, "OpenStreetMap": osm }, null, { position: "topright" }).addTo(map);
 
+/* ---------- Textes (re-dessinés quand la langue change) ---------- */
+let result = null, endInfo = null, missing = null;
+
+function renderMissing() {
+  const m = $("missing");
+  if (!missing) { m.style.display = "none"; return; }
+  m.style.display = "block";
+  m.textContent = missing.kind === "none" ? tr("missing.none") : tr("missing.photo", { file: missing.file });
+}
+
+function renderResult() {
+  if (!result) return;
+  const { d, pts, last } = result;
+  $("resTitle").textContent = d < 15 ? tr("res.bullseye") : d < 80 ? tr("res.close") : tr("res.far", { d: Math.round(d) });
+  $("resText").textContent = (d < 15 ? tr("res.within") : "") + tr("res.dist", { d: Math.round(d), pts })
+    + (last ? tr("res.over", { total, max: MAX_POINTS * order.length }) : "");
+}
+
+function endMessage(rank, ratio) {
+  if (rank === 1) return tr("msg.record");
+  if (rank <= 3) return tr("msg.podium");
+  if (ratio >= 0.8) return tr("msg.m80");
+  if (ratio >= 0.5) return tr("msg.m50");
+  if (ratio >= 0.25) return tr("msg.m25");
+  return tr("msg.m0");
+}
+
+function renderEnd() {
+  if (!endInfo) return;
+  const el = $("endRank");
+  el.textContent = "";
+  if (endInfo.err) {
+    el.textContent = tr("end.notSaved");
+    $("endMsg").textContent = tr("end.unreachable", { err: endInfo.err });
+  } else if (endInfo.rank) {
+    el.append(tr("end.rank", { ord: ordinal(endInfo.rank) }));
+    const sub = document.createElement("small");
+    sub.textContent = tr(endInfo.nb > 1 ? "end.outOfN" : "end.outOf1", { n: endInfo.nb });
+    el.appendChild(sub);
+    $("endMsg").textContent = endMessage(endInfo.rank, endInfo.ratio);
+  } else {
+    el.append(tr("end.saved"));
+    $("endMsg").textContent = tr("end.noRank") + endMessage(99, endInfo.ratio);
+  }
+}
+
+function renderTexts() {
+  if (order.length) $("round").textContent = tr("round", { n: round + 1, total: order.length });
+  $("score").textContent = total + " " + tr("pts");
+  $("toggle").textContent = $("mapwrap").classList.contains("open") ? tr("map.reduce") : tr("map.enlarge");
+  const last = order.length && round === order.length - 1;
+  if (locked) $("guess").textContent = last ? tr("btn.seeScore") : tr("btn.next");
+  else $("guess").textContent = guess ? tr("btn.validate") : tr("btn.place");
+  renderMissing();
+  renderResult();
+  renderEnd();
+}
+
+/* ---------- Carte ---------- */
 map.on("click", (e) => {
   if (locked) return;
   guess = e.latlng;
   if (guessMarker) guessMarker.setLatLng(guess);
   else guessMarker = L.circleMarker(guess, { radius: 8, color: "#10252d", weight: 3, fillColor: "#f0b429", fillOpacity: 1 }).addTo(map);
   $("guess").disabled = false;
-  $("guess").textContent = "Valider ma réponse";
+  renderTexts();
 });
 
 function resizeMap() { setTimeout(() => map.invalidateSize(), 260); }
 $("mapwrap").addEventListener("mouseenter", resizeMap);
 $("mapwrap").addEventListener("mouseleave", resizeMap);
 $("toggle").addEventListener("click", () => {
-  const open = $("mapwrap").classList.toggle("open");
-  $("toggle").textContent = open ? "Réduire la carte" : "Agrandir la carte";
+  $("mapwrap").classList.toggle("open");
+  renderTexts();
   resizeMap();
 });
 
 // Photo
 $("stage").addEventListener("click", (e) => { if (e.target.id === "photo") $("stage").classList.toggle("cover"); });
-$("photo").addEventListener("error", () => {
-  const m = $("missing");
-  m.style.display = "block";
-  m.textContent = "Photo introuvable : " + order[round].file;
-});
-$("photo").addEventListener("load", () => { $("missing").style.display = "none"; });
+$("photo").addEventListener("error", () => { missing = { kind: "photo", file: order[round].file }; renderMissing(); });
+$("photo").addEventListener("load", () => { missing = null; renderMissing(); });
 
 function shuffle(a) {
   a = a.slice();
@@ -266,32 +323,29 @@ function distance(a, b) { // haversine, en mètres
 }
 
 function showEmpty() {
-  $("missing").style.display = "block";
-  $("missing").textContent = "Aucune photo dans photos.js pour l’instant.";
+  missing = { kind: "none" };
   $("guess").disabled = true;
+  renderTexts();
 }
 
 function newGame() {
   order = shuffle(PHOTOS).slice(0, Math.min(ROUNDS, PHOTOS.length));
   round = 0; total = 0;
-  $("score").textContent = "0 pts";
   startRound();
 }
 
 function startRound() {
-  locked = false; guess = null;
+  locked = false; guess = null; result = null;
   [guessMarker, trueMarker, line].forEach((l) => l && map.removeLayer(l));
   guessMarker = trueMarker = line = null;
   $("result").style.display = "none";
   $("result").classList.remove("corner");
   $("stage").classList.remove("cover");
   $("mapwrap").classList.remove("open");
-  $("toggle").textContent = "Agrandir la carte";
   $("guess").disabled = true;
-  $("guess").textContent = "Clique sur la carte pour placer ton point";
-  $("round").textContent = "Manche " + (round + 1) + " / " + order.length;
   $("photo").src = order[round].file;
   map.setView(CENTER, START_ZOOM);
+  renderTexts();
   resizeMap();
 }
 
@@ -310,35 +364,29 @@ $("guess").addEventListener("click", () => {
   }
   if (!guess) return;
   locked = true; lockedAt = Date.now();
-  const t = order[round];
-  const d = distance(guess, t);
+  const target = order[round];
+  const d = distance(guess, target);
   const pts = Math.round(MAX_POINTS * Math.exp(-d / SCALE_M));
   total += pts;
-  $("score").textContent = total + " pts";
+  result = { d, pts, last: round === order.length - 1 };
 
-  trueMarker = L.circleMarker([t.lat, t.lng], { radius: 9, color: "#fff", weight: 3, fillColor: "#2f9e6b", fillOpacity: 1 }).addTo(map);
-  line = L.polyline([guess, [t.lat, t.lng]], { color: "#d2493f", weight: 3, dashArray: "6 8" }).addTo(map);
+  trueMarker = L.circleMarker([target.lat, target.lng], { radius: 9, color: "#fff", weight: 3, fillColor: "#2f9e6b", fillOpacity: 1 }).addTo(map);
+  line = L.polyline([guess, [target.lat, target.lng]], { color: "#d2493f", weight: 3, dashArray: "6 8" }).addTo(map);
 
   $("mapwrap").classList.add("open");
-  $("toggle").textContent = "Réduire la carte";
-  setTimeout(() => { map.invalidateSize(); map.fitBounds(L.latLngBounds([guess, [t.lat, t.lng]]), { padding: [50, 50], maxZoom: 19 }); }, 280);
+  setTimeout(() => { map.invalidateSize(); map.fitBounds(L.latLngBounds([guess, [target.lat, target.lng]]), { padding: [50, 50], maxZoom: 19 }); }, 280);
 
-  const last = round === order.length - 1;
-  $("resTitle").textContent = d < 15 ? "En plein dans le mille" : d < 80 ? "Tout près" : "À " + Math.round(d) + " m";
-  $("resText").textContent = (d < 15 ? "Moins de 15 m d’écart. " : "") + "Distance : " + Math.round(d) + " m. Tu gagnes " + pts + " points" + (last ? ". Partie terminée : " + total + " / " + (MAX_POINTS * order.length) + "." : ".");
   $("guess").disabled = false;
-  $("guess").textContent = last ? "Voir mon score" : "Manche suivante";
   $("result").classList.add("corner");
   $("result").style.display = "block";
+  renderTexts();
 });
 
 /* ============ CLASSEMENT & FIN DE PARTIE ============ */
 
-function ordinal(n) { return n === 1 ? "1er" : n + "e"; }
-
 function renderScores(ol, rows) {
   ol.textContent = "";
-  if (!rows.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "Aucun score pour l’instant"; ol.appendChild(li); return; }
+  if (!rows.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = tr("score.empty"); ol.appendChild(li); return; }
   rows.forEach((r, i) => {
     const li = document.createElement("li");
     const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
@@ -355,27 +403,21 @@ async function refreshBoard() {
     renderScores($("endTopList"), rows);
   } catch (err) {
     console.error(err);
-    $("boardList").innerHTML = '<li class="empty">Classement indisponible</li>';
+    $("boardList").innerHTML = "";
+    const li = document.createElement("li"); li.className = "empty"; li.textContent = tr("board.unavailable");
+    $("boardList").appendChild(li);
   }
-}
-
-function endMessage(rank, ratio) {
-  if (rank === 1) return "Nouveau record ! Tu règnes sur le campus.";
-  if (rank <= 3) return "Sur le podium, bravo !";
-  if (ratio >= 0.8) return "Tu connais le campus comme ta poche.";
-  if (ratio >= 0.5) return "Pas mal du tout, tu as de bons repères.";
-  if (ratio >= 0.25) return "Pas mal, mais le campus a encore des secrets pour toi.";
-  return "Il est temps d’aller explorer le campus !";
 }
 
 function showEnd() {
   $("result").style.display = "none";
+  endInfo = null;
   $("endScore").textContent = total;
   $("endMax").textContent = "/ " + (MAX_POINTS * order.length);
   $("endResult").hidden = true;
   $("pseudoForm").hidden = false;
   $("saveBtn").disabled = false;
-  $("saveBtn").textContent = "Enregistrer mon score";
+  $("saveBtn").textContent = tr("end.save");
   try { $("pseudo").value = localStorage.getItem("geoguessr_pseudo") || ""; } catch {}
   $("end").style.display = "flex";
   $("pseudo").focus();
@@ -386,24 +428,16 @@ $("pseudoForm").addEventListener("submit", async (e) => {
   const pseudo = $("pseudo").value.trim();
   if (!pseudo) return;
   try { localStorage.setItem("geoguessr_pseudo", pseudo); } catch {}
-  $("saveBtn").disabled = true; $("saveBtn").textContent = "Enregistrement…";
+  $("saveBtn").disabled = true; $("saveBtn").textContent = tr("end.saving");
   const ratio = total / (MAX_POINTS * order.length);
   try {
     const { rank, total: nb } = await Scoreboard.submit(pseudo, total);
-    $("endRank").textContent = "";
-    if (rank) {
-      $("endRank").append("Tu es " + ordinal(rank));
-      const sub = document.createElement("small"); sub.textContent = "sur " + nb + " score" + (nb > 1 ? "s" : "") + " enregistré" + (nb > 1 ? "s" : ""); $("endRank").appendChild(sub);
-      $("endMsg").textContent = endMessage(rank, ratio);
-    } else {
-      $("endRank").append("Score enregistré");
-      $("endMsg").textContent = "Ton rang n’a pas pu être calculé. " + endMessage(99, ratio);
-    }
+    endInfo = { rank, nb, ratio };
   } catch (err) {
     console.error(err);
-    $("endRank").textContent = "Score non enregistré";
-    $("endMsg").textContent = "Le classement est injoignable pour le moment. Détail : " + (err.message || err);
+    endInfo = { err: err.message || String(err), ratio };
   }
+  renderEnd();
   await refreshBoard();
   $("pseudoForm").hidden = true;
   $("endResult").hidden = false;
@@ -411,6 +445,8 @@ $("pseudoForm").addEventListener("submit", async (e) => {
 });
 
 $("replay").addEventListener("click", () => { $("end").style.display = "none"; newGame(); });
+
+document.addEventListener("langchange", () => { renderTexts(); refreshBoard(); });
 
 refreshBoard();
 
@@ -432,4 +468,3 @@ loadRemotePhotos().then(() => { if (PHOTOS.length) newGame(); else showEmpty(); 
 </script>
 </body>
 </html>
-
