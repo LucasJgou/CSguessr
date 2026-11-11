@@ -10,7 +10,7 @@
 </script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>GeoGuessr CentraleSupélec</title>
+<title>CSguessr – Devine où tu es à CentraleSupélec</title>
 <meta name="description" content="Le GeoGuessr du campus de CentraleSupélec : retrouve où ont été prises les photos et grimpe au classement.">
 
 <meta property="og:type" content="website">
@@ -30,6 +30,22 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="description" content="Devine où tu es sur le campus de CentraleSupélec : des photos, un classement, et des jetons pour ouvrir des boosters Wikimaster.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="CSguessr – Devine où tu es à CentraleSupélec">
+<meta property="og:description" content="Retrouve sur la carte l’endroit où la photo a été prise, grimpe au classement et gagne des jetons Wikimaster.">
+<meta property="og:image" content="https://lucasjgou.github.io/CSguessr/og-image.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script async src="https://www.googletagmanager.com/gtm.js?id=GTM-5P9NMJ49"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-SSS4EVD5M4');
+</script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -181,7 +197,7 @@
 
     <form id="pseudoForm">
       <label for="pseudo" data-i18n="end.label">Ton pseudo pour le classement</label>
-      <input id="pseudo" maxlength="16" autocomplete="nickname" required data-i18n-placeholder="end.placeholder" placeholder="Ex : Skibidi du 22 Pro Player">
+      <input id="pseudo" maxlength="16" autocomplete="nickname" required data-i18n-placeholder="end.placeholder" placeholder="Ex : Marie">
       <button type="submit" id="saveBtn" data-i18n="end.save">Enregistrer mon score</button>
     </form>
 
@@ -200,6 +216,7 @@
 <script src="config.js"></script>
 <script src="scoreboard.js"></script>
 <script src="i18n.js"></script>
+<script src="claim.js"></script>
 <script src="photos.js"></script>
 <script>
 /* ============ À MODIFIER ============ */
