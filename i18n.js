@@ -84,8 +84,8 @@
       "add.insRefused": "enregistrement des coordonnées refusé ({s})",
       "add.conn": "connexion impossible",
 
-      // Lien avec Wikimaster (jetons)
-      "wiki.title": "Wikimaster",
+      // Lien avec WikiCS (jetons)
+      "wiki.title": "WikiCS",
       "wiki.hint": "Connecte-toi pour gagner des jetons à chaque partie.",
       "wiki.login": "Se connecter",
       "wiki.logout": "Quitter",
@@ -93,8 +93,8 @@
       "wiki.token1": "{n} jeton",
       "wiki.tokens": "{n} jetons",
       "wiki.noProfile": "Ce compte n’a pas de profil de joueur. Quitte, puis crée un compte avec un pseudo.",
-      "wiki.loginTitle": "Connexion Wikimaster",
-      "wiki.loginLead": "C’est le même compte que sur Wikimaster : tes jetons te suivent d’un jeu à l’autre.",
+      "wiki.loginTitle": "Connexion WikiCS",
+      "wiki.loginLead": "C’est le même compte que sur WikiCS : tes jetons te suivent d’un jeu à l’autre.",
       "wiki.pseudo": "Pseudo",
       "wiki.password": "Mot de passe",
       "wiki.create": "Créer le compte",
@@ -186,7 +186,7 @@
       "add.insRefused": "coordinates not saved ({s})",
       "add.conn": "connection failed",
 
-      "wiki.title": "Wikimaster",
+      "wiki.title": "WikiCS",
       "wiki.hint": "Log in to earn tokens after each game.",
       "wiki.login": "Log in",
       "wiki.logout": "Log out",
@@ -194,8 +194,8 @@
       "wiki.token1": "{n} token",
       "wiki.tokens": "{n} tokens",
       "wiki.noProfile": "This account has no player profile. Log out, then create an account with a nickname.",
-      "wiki.loginTitle": "Wikimaster login",
-      "wiki.loginLead": "This is the same account as on Wikimaster: your tokens follow you from one game to the other.",
+      "wiki.loginTitle": "WikiCS login",
+      "wiki.loginLead": "This is the same account as on WikiCS: your tokens follow you from one game to the other.",
       "wiki.pseudo": "Nickname",
       "wiki.password": "Password",
       "wiki.create": "Create account",
