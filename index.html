@@ -75,7 +75,7 @@
   }
   #result h2 { margin: 0 0 .25rem; font-size: 1.6rem; font-weight: 800; }
   #result p { margin: .25rem 0 1rem; font-size: 1.05rem; }
-  #result.corner { top: auto; bottom: 12px; left: 12px; transform: none; width: min(300px, calc(100vw - 24px)); z-index: 600; padding: 1rem; }
+  #result.corner { top: auto; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 66px); left: 12px; transform: none; width: min(300px, calc(100vw - 24px)); z-index: 600; padding: 1rem; }
   #result.corner h2 { font-size: 1.2rem; }
   #result.corner p { font-size: .95rem; }
 
