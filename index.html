@@ -1,13 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<script async src="https://www.googletagmanager.com/gtm.js?id=GTM-5P9NMJ49"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-SSS4EVD5M4');
-</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>CSguessr – Devine où tu es à CentraleSupélec</title>
@@ -20,6 +13,13 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script async src="https://www.googletagmanager.com/gtm.js?id=GTM-5P9NMJ49"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-SSS4EVD5M4');
+</script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -194,7 +194,7 @@
 
     <form id="pseudoForm">
       <label for="pseudo" data-i18n="end.label">Ton pseudo pour le classement</label>
-      <input id="pseudo" maxlength="16" autocomplete="nickname" required data-i18n-placeholder="end.placeholder" placeholder="Ex : Marie">
+      <input id="pseudo" maxlength="16" autocomplete="nickname" required data-i18n-placeholder="end.placeholder" placeholder="Ex : Skibidi du 22 Pro Player">
       <button type="submit" id="saveBtn" data-i18n="end.save">Enregistrer mon score</button>
     </form>
 
@@ -203,7 +203,7 @@
       <p id="endMsg"></p>
       <h3 data-i18n="end.top">Meilleurs scores</h3>
       <div id="endTop"><ol class="scores" id="endTopList"></ol></div>
-      <button type="button" id="replay" data-i18n="end.replay">Rejouer</button>
+      <button type="button" id="replay" data-i18n="end.menu">Retour au menu</button>
       <a class="secbtn" href="classement.html" data-i18n="end.viewBoard">Voir le classement général</a>
     </div>
   </div>
@@ -475,7 +475,13 @@ $("pseudoForm").addEventListener("submit", async (e) => {
   $("replay").focus();
 });
 
-$("replay").addEventListener("click", () => { $("end").style.display = "none"; newGame(); setMode("playing"); });
+// Retour au menu : on prépare déjà la prochaine partie, mais le joueur la lance quand il veut (« Commencer la partie »)
+$("replay").addEventListener("click", () => {
+  $("end").style.display = "none";
+  newGame();
+  $("startBtn").disabled = false;
+  setMode("intro");
+});
 
 document.addEventListener("langchange", () => { renderTexts(); refreshBoard(); });
 
