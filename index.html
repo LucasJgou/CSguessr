@@ -11,25 +11,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>CSguessr – Devine où tu es à CentraleSupélec</title>
-<meta name="description" content="Le GeoGuessr du campus de CentraleSupélec : retrouve où ont été prises les photos et grimpe au classement.">
-
+<meta name="description" content="Devine où tu es sur le campus de CentraleSupélec : des photos, un classement, et des jetons pour ouvrir des boosters Wikimaster.">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="CSguessr">
 <meta property="og:title" content="CSguessr – Devine où tu es à CentraleSupélec">
-<meta property="og:url" content="https://lucasjgou.github.io/CSguessr/">
+<meta property="og:description" content="Retrouve sur la carte l’endroit où la photo a été prise, grimpe au classement et gagne des jetons Wikimaster.">
 <meta property="og:image" content="https://lucasjgou.github.io/CSguessr/og-image.jpg">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="686">
-<meta property="og:locale" content="fr_FR">
-
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="CSguessr – Devine où tu es à CentraleSupélec">
-<meta name="twitter:description" content="Retrouve où ont été prises les photos du campus et grimpe au classement.">
-<meta name="twitter:image" content="https://lucasjgou.github.io/CSguessr/og-image.jpg">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -138,10 +128,25 @@
   #endTop .scores .pos { color: var(--ink); }
   #endResult h3 { margin: 1rem 0 .4rem; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: #5b6b66; text-align: left; }
 
-  @media (prefers-reduced-motion: reduce) { #mapwrap { transition: none; } }
+  /* États de la page : « intro » = écran de départ, « playing » = partie en cours, aucune classe = fin de partie */
+  #start { position: fixed; inset: 0; z-index: 350; display: none; align-items: center; justify-content: center; padding: 16px; pointer-events: none; }
+  body.intro #start { display: flex; }
+  .startcard { pointer-events: auto; width: min(340px, 100%); background: var(--paper); color: var(--ink); border-radius: 18px; padding: 1.25rem; text-align: center; box-shadow: 0 20px 60px rgba(0, 0, 0, .55); }
+  .startcard h1 { margin: 0 0 .25rem; font-size: 1.7rem; font-weight: 800; }
+  .startcard p { margin: 0 0 1rem; }
+  .startcard button { width: 100%; border: 0; border-radius: 12px; padding: .95rem; font: 800 1.05rem var(--font); background: var(--signal); color: var(--ink); cursor: pointer; }
+  .startcard button:disabled { background: var(--line); color: #6a7771; cursor: wait; }
+  .startcard button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  #photo { transition: filter .35s ease; }
+  body.intro #photo { filter: grayscale(1) blur(8px) brightness(.55); pointer-events: none; cursor: default; }
+  body.intro #mapwrap { visibility: hidden; pointer-events: none; }
+  /* Pendant la partie, on ne garde que la manche et le score : le reste revient à la fin */
+  body.playing #board, body.playing #wiki, body.playing #addlink, body.playing #boardlink, body.playing .langsw { display: none; }
+
+  @media (prefers-reduced-motion: reduce) { #mapwrap { transition: none; } #photo { transition: none; } }
 </style>
 </head>
-<body>
+<body class="intro">
 
 <div id="stage">
   <img id="photo" data-i18n-alt="photo.alt" alt="">
@@ -167,6 +172,14 @@
   <button id="toggle" type="button">Agrandir la carte</button>
   <div id="map"></div>
   <button id="guess" type="button" disabled>Clique sur la carte pour placer ton point</button>
+</div>
+
+<div id="start">
+  <div class="startcard">
+    <h1 data-i18n="start.title">CSguessr</h1>
+    <p id="startLead"></p>
+    <button type="button" id="startBtn" data-i18n="start.btn" disabled>Commencer la partie</button>
+  </div>
 </div>
 
 <div id="result" role="dialog" aria-live="polite">
@@ -282,6 +295,7 @@ function renderEnd() {
 }
 
 function renderTexts() {
+  $("startLead").textContent = tr("start.lead", { n: order.length || ROUNDS });
   if (order.length) $("round").textContent = tr("round", { n: round + 1, total: order.length });
   $("score").textContent = total + " " + tr("pts");
   $("toggle").textContent = $("mapwrap").classList.contains("open") ? tr("map.reduce") : tr("map.enlarge");
@@ -331,6 +345,7 @@ function distance(a, b) { // haversine, en mètres
 }
 
 function showEmpty() {
+  setMode("");
   missing = { kind: "none" };
   $("guess").disabled = true;
   renderTexts();
@@ -417,7 +432,15 @@ async function refreshBoard() {
   }
 }
 
+function setMode(m) {
+  document.body.classList.remove("intro", "playing");
+  if (m) document.body.classList.add(m);
+  if (m === "intro") $("startBtn").focus();
+}
+$("startBtn").addEventListener("click", () => setMode("playing"));
+
 function showEnd() {
+  setMode("");
   $("result").style.display = "none";
   endInfo = null;
   $("endScore").textContent = total;
@@ -452,7 +475,7 @@ $("pseudoForm").addEventListener("submit", async (e) => {
   $("replay").focus();
 });
 
-$("replay").addEventListener("click", () => { $("end").style.display = "none"; newGame(); });
+$("replay").addEventListener("click", () => { $("end").style.display = "none"; newGame(); setMode("playing"); });
 
 document.addEventListener("langchange", () => { renderTexts(); refreshBoard(); });
 
@@ -472,7 +495,10 @@ async function loadRemotePhotos() {
     (await r.json()).forEach((p) => PHOTOS.push({ file: root + "/storage/v1/object/public/photos/" + p.path, lat: p.lat, lng: p.lng }));
   } catch {}
 }
-loadRemotePhotos().then(() => { if (PHOTOS.length) newGame(); else showEmpty(); });
+loadRemotePhotos().then(() => {
+  if (PHOTOS.length) { newGame(); $("startBtn").disabled = false; setMode("intro"); }
+  else showEmpty();
+});
 </script>
 </body>
 </html>
