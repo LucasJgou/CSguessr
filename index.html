@@ -87,14 +87,14 @@
     .pill { font-size: .78rem; padding: .4rem .65rem; }
     #hud, .hudright { gap: 6px; }
     #hud { flex-wrap: wrap; row-gap: 6px; }   /* sur téléphone : 2 lignes, rien ne sort de l'écran */
-    #board { top: calc(max(12px, env(safe-area-inset-top)) + 106px); }
+    #board { top: calc(max(12px, env(safe-area-inset-top)) + 96px); }
   }
   #addlink { pointer-events: auto; color: var(--paper); text-decoration: none; }
   #addlink:hover, #addlink:focus-visible { background: var(--signal); color: var(--ink); outline: none; }
   #missing a { color: var(--signal); }
 
   /* Classement à gauche */
-  #board { position: fixed; left: 12px; top: calc(max(12px, env(safe-area-inset-top)) + 75px); width: min(220px, 42vw);
+  #board { position: fixed; left: 12px; top: calc(max(12px, env(safe-area-inset-top)) + 54px); width: min(220px, 42vw);
     background: rgba(16, 37, 45, .85); backdrop-filter: blur(6px); border-radius: 14px; padding: .7rem .85rem; z-index: 300; pointer-events: none; }
   #board h2 { margin: 0 0 .4rem; font-size: .8rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--signal); }
   .scores { list-style: none; margin: 0; padding: 0; }
