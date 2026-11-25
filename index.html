@@ -75,7 +75,7 @@
   }
   #result h2 { margin: 0 0 .25rem; font-size: 1.6rem; font-weight: 800; }
   #result p { margin: .25rem 0 1rem; font-size: 1.05rem; }
-  #result.corner { top: auto; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 66px); left: 12px; transform: none; width: min(300px, calc(100vw - 24px)); z-index: 600; padding: 1rem; }
+  #result.corner { top: auto; bottom: 12px; left: 12px; transform: none; width: min(300px, calc(100vw - 24px)); z-index: 600; padding: 1rem; }
   #result.corner h2 { font-size: 1.2rem; }
   #result.corner p { font-size: .95rem; }
 
@@ -87,14 +87,14 @@
     .pill { font-size: .78rem; padding: .4rem .65rem; }
     #hud, .hudright { gap: 6px; }
     #hud { flex-wrap: wrap; row-gap: 6px; }   /* sur téléphone : 2 lignes, rien ne sort de l'écran */
-    #board { top: calc(max(12px, env(safe-area-inset-top)) + 106px); }
+    #board { top: calc(max(12px, env(safe-area-inset-top)) + 96px); }
   }
   #addlink { pointer-events: auto; color: var(--paper); text-decoration: none; }
   #addlink:hover, #addlink:focus-visible { background: var(--signal); color: var(--ink); outline: none; }
   #missing a { color: var(--signal); }
 
   /* Classement à gauche */
-  #board { position: fixed; left: 12px; top: calc(max(12px, env(safe-area-inset-top)) + 75px); width: min(220px, 42vw);
+  #board { position: fixed; left: 12px; top: calc(max(12px, env(safe-area-inset-top)) + 54px); width: min(220px, 42vw);
     background: rgba(16, 37, 45, .85); backdrop-filter: blur(6px); border-radius: 14px; padding: .7rem .85rem; z-index: 300; pointer-events: none; }
   #board h2 { margin: 0 0 .4rem; font-size: .8rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--signal); }
   .scores { list-style: none; margin: 0; padding: 0; }
@@ -179,6 +179,7 @@
     <h1 data-i18n="start.title">CSguessr</h1>
     <p id="startLead"></p>
     <button type="button" id="startBtn" data-i18n="start.btn" disabled>Commencer la partie</button>
+    <p class="creditline" data-credits-line></p>
   </div>
 </div>
 
@@ -194,7 +195,7 @@
 
     <form id="pseudoForm">
       <label for="pseudo" data-i18n="end.label">Ton pseudo pour le classement</label>
-      <input id="pseudo" maxlength="16" autocomplete="nickname" required data-i18n-placeholder="end.placeholder" placeholder="Ex : Skibidi du 22 Pro Player">
+      <input id="pseudo" maxlength="16" autocomplete="nickname" required data-i18n-placeholder="end.placeholder" placeholder="Ex : Marie">
       <button type="submit" id="saveBtn" data-i18n="end.save">Enregistrer mon score</button>
     </form>
 
@@ -205,6 +206,7 @@
       <div id="endTop"><ol class="scores" id="endTopList"></ol></div>
       <button type="button" id="replay" data-i18n="end.menu">Retour au menu</button>
       <a class="secbtn" href="classement.html" data-i18n="end.viewBoard">Voir le classement général</a>
+      <p class="creditline" data-credits-line></p>
     </div>
   </div>
 </div>
@@ -213,6 +215,7 @@
 <script src="config.js"></script>
 <script src="scoreboard.js"></script>
 <script src="i18n.js"></script>
+<script src="credits.js"></script>
 <script src="claim.js"></script>
 <script src="photos.js"></script>
 <script>
